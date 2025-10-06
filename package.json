@@ -4,7 +4,10 @@
   "type": "module",
   "description": "Geordi accessibility project — Vision In, Vision Out",
   "scripts": {
-    "geordi:capture": "node scripts/capture.js"
+    "geordi:capture": "node scripts/capture.js",
+    "geordi:clean": "rm -rf screenshots",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "author": "Vanessa Keeton",
   "license": "MIT",
@@ -12,6 +15,8 @@
     "puppeteer": "^24.23.0"
   },
   "devDependencies": {
-    "eslint": "^9.37.0"
+    "eslint": "^9.37.0",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4"
   }
 }
