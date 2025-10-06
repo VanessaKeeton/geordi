@@ -1,0 +1,17 @@
+{
+  "name": "geordi",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Geordi accessibility project — Vision In, Vision Out",
+  "scripts": {
+    "geordi:capture": "node scripts/capture.js"
+  },
+  "author": "Vanessa Keeton",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^24.23.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.37.0"
+  }
+}

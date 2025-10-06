@@ -1,0 +1,26 @@
+# Node
+node_modules/
+pnpm-lock.yaml
+
+# Environment / local config
+.env
+.env.*
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Screenshots & outputs
+screenshots/
+output/
+*.log
+*.tmp
+
+# OS & IDE noise
+Thumbs.db
+.idea/
+.vscode/
+*.swp
