@@ -6,12 +6,14 @@
   "scripts": {
     "geordi:capture": "node scripts/capture.js",
     "geordi:clean": "rm -rf screenshots",
+    "geordi:send": "node scripts/sendToModel.js",
     "test": "vitest",
     "test:run": "vitest run"
   },
   "author": "Vanessa Keeton",
   "license": "MIT",
   "dependencies": {
+    "openai": "^6.2.0",
     "puppeteer": "^24.23.0"
   },
   "devDependencies": {
