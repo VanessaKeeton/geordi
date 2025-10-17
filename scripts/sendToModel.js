@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
 import { OPEN_AI_KEY } from "../constants/secrets.js"
+import { buildMessages, parseModelOutput } from "../helpers/sendToModelHelpers.js";
 
 const openai = new OpenAI({
   apiKey: OPEN_AI_KEY,
@@ -11,7 +12,7 @@ const openai = new OpenAI({
 const OUTPUT_DIR = path.resolve("output");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "vision_output.json");
 
-const MODEL = process.env.VISION_MODEL || "gpt-5-nano";
+const MODEL = process.env.VISION_MODEL || "gpt-5-mini";
 
 /**
  * Send an image to a vision model and return structured JSON.
@@ -71,20 +72,7 @@ export async function sendToVisionModel(imagePath) {
 
     const base64Image = fs.readFileSync(imagePath, { encoding: "base64" });
 
-    const messages = [
-      {
-        role: "system",
-        content: "You are a multimodal model that merges webpage DOM and screenshot information to identify visible UI elements.",
-      },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          ...(domContent ? [{ type: "text", text: `DOM Snapshot:\n${domContent.slice(0, 15000)}` }] : []),
-          { type: "image_url", image_url: { url: `data:image/png;base64,${base64Image}` } },
-        ],
-      },
-    ];
+    const messages = buildMessages({base64Image, domContent, prompt});
 
 
     const response = await openai.chat.completions.create({
@@ -92,20 +80,30 @@ export async function sendToVisionModel(imagePath) {
       messages,
     });
 
-    const rawOutput = response.choices[0]?.message?.content?.trim() || "";
+    const rawOutput = response?.choices?.[0]?.message?.content?.trim() || "";
 
-    let parsed;
-    try {
-      parsed = JSON.parse(rawOutput);
-    } catch {
-      console.warn("⚠️ Model returned invalid JSON — saving raw output.");
-      parsed = { raw: rawOutput };
-    }
+    const parsed = parseModelOutput(rawOutput);
 
     if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(parsed, null, 2));
 
     console.log(`✅ Vision output saved to ${OUTPUT_FILE}`);
+
+    // 🪵 Debug logging
+    if (process.env.DEBUG_MODEL_OUTPUT === "true") {
+      const debugOutputPath = path.join(OUTPUT_DIR, "raw_model_response.txt");
+      let raw;
+
+      try {
+        raw = JSON.stringify(response ?? { message: "No response object" }, null, 2);
+      } catch (err) {
+        raw = `Failed to stringify response: ${err.message}`;
+      }
+
+      fs.writeFileSync(debugOutputPath, raw);
+      console.log(`🪵 Raw model response logged to ${debugOutputPath}`);
+    }
+
     return parsed;
   } catch (err) {
     console.error("❌ Error sending image to vision model:", err.message);

@@ -39,7 +39,7 @@ async function main() {
     browser = await puppeteer.launch();
     const page = await browser.newPage();
     // Wait for the page to fully load and settle
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(url, { waitUntil: 'load', timeout: 60000 });
 
     // Wait for all <img> elements to finish loading
     await page.waitForFunction(() => {
@@ -76,17 +76,81 @@ async function main() {
     await new Promise(res => setTimeout(res, 1000));
 
     // get the content
-    const dom = await page.evaluate(() => {
-      function serialize(node) {
+    const dom = await page.evaluate(async () => {
+      // Wait for client-side rendering (Wix etc.)
+      await new Promise(r => setTimeout(r, 4000));
+      if (document.fonts) await document.fonts.ready.catch(() => {});
+
+      function isVisible(el) {
+        if (!el || !el.getBoundingClientRect) return false;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.visibility !== "hidden" &&
+          style.display !== "none" &&
+          style.opacity !== "0"
+        );
+      }
+
+      function isInteractive(el) {
+        const tag = el.tagName?.toLowerCase?.() || "";
+        if (["a", "button", "input", "textarea", "select", "details", "summary"].includes(tag))
+          return true;
+        if (el.hasAttribute("onclick") || el.hasAttribute("role")) return true;
+        const style = window.getComputedStyle(el);
+        return style.cursor === "pointer";
+      }
+
+      function safeText(el) {
+        try {
+          if (!el || el.childElementCount > 0) return "";
+          const text = el.innerText || el.textContent || "";
+          return text.trim();
+        } catch {
+          return "";
+        }
+      }
+
+      function serialize(el) {
+        const tag = el.tagName?.toLowerCase?.() || "";
+        const skip = ["script", "style", "meta", "link", "noscript", "head"];
+        if (!tag || skip.includes(tag)) return null;
+        if (!isVisible(el)) return null;
+
+        const text = safeText(el);
+        const children = Array.from(el.children)
+          .map(c => serialize(c))
+          .filter(Boolean);
+
+        const meaningful =
+          text ||
+          ["img", "a", "button", "input", "label", "h1", "h2", "h3", "h4", "h5", "h6"].includes(tag);
+
+        if (!meaningful && !children.length) return null;
+
         return {
-          tag: node.tagName,
-          text: node.innerText || "",
-          attrs: Object.fromEntries([...node.attributes].map(a => [a.name, a.value])),
-          children: [...node.children].map(serialize)
+          tag: tag.toUpperCase(),
+          id: el.id || undefined,
+          class: el.className || undefined,
+          text: text || undefined,
+          alt: el.getAttribute("alt") || undefined,
+          role: el.getAttribute("role") || undefined,
+          href: el.getAttribute("href") || undefined,
+          src: el.getAttribute("src") || undefined,
+          syntheticInteractive: isInteractive(el),
+          children: children.length ? children : undefined,
         };
       }
+
       return serialize(document.body);
     });
+
+
+
+
+
     fs.writeFileSync(serializedContentFilePath, JSON.stringify(dom, null, 2));
 
     // take a picture

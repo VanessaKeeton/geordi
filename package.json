@@ -5,7 +5,7 @@
   "description": "Geordi accessibility project — Vision In, Vision Out",
   "scripts": {
     "geordi:capture": "node scripts/capture.js",
-    "geordi:clean": "rm -rf screenshots",
+    "geordi:clean": "rm -rf screenshots && rm -rf output",
     "geordi:send": "node scripts/sendToModel.js",
     "test": "vitest",
     "test:run": "vitest run"
