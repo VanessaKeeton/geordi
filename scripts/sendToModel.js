@@ -26,43 +26,70 @@ export async function sendToVisionModel(imagePath) {
     throw new Error(`Image not found at path: ${imagePath}`);
   }
 
+  // derive matching JSON path
+  const domFilePath = imagePath.replace("screenshot_", "serialized_").replace(".png", ".json");
+  let domContent = null;
+
+  if (fs.existsSync(domFilePath)) {
+    console.log(`📄 Including DOM snapshot: ${domFilePath}`);
+    domContent = fs.readFileSync(domFilePath, "utf-8");
+  } else {
+    console.warn("⚠️ No DOM JSON found for this image — continuing with vision only.");
+  }
+
   try {
     const prompt = `
-    Describe all visible user interface elements (buttons, links, text, fields, etc.)
-    in structured JSON format:
+    You are analyzing a webpage using two inputs:
+    1. A DOM snapshot (JSON describing element hierarchy, text, and attributes).
+    2. A screenshot image of the same page.
+
+    Your job:
+    - Combine DOM structure with the visual image to identify visible interface elements.
+    - Correctly infer semantic roles:
+       • If something looks like a button or link but the DOM shows <div> with onClick → type: "button" or "link".
+       • If something is invisible or off-screen → ignore it.
+    - Use DOM text for accuracy, but verify visually that it is rendered.
+
+    Output strictly JSON:
     [
       {
-        "type": "button" | "text" | "link" | "input" | "other",
-        "label": "visible text or alt text if any",
+        "type": "button" | "link" | "input" | "heading" | "paragraph" | "image" | "other",
+        "label": "exact visible text from DOM or image",
         "bounding_box": [x, y, width, height],
-        "attributes": ["clickable" | "disabled" | "hidden" | ...]
+        "attributes": ["visible", "clickable", ...],
+        "source": "dom" | "vision" | "merged",
+        "dom_tag": "the original HTML tag name if known"
       }
     ]
-    Return only valid JSON, no extra commentary.
+
+    Rules:
+    - No commentary or markdown.
+    - Do not summarize or fabricate text.
+    - Use both sources to infer meaning accurately.
     `;
+
 
     const base64Image = fs.readFileSync(imagePath, { encoding: "base64" });
 
+    const messages = [
+      {
+        role: "system",
+        content: "You are a multimodal model that merges webpage DOM and screenshot information to identify visible UI elements.",
+      },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          ...(domContent ? [{ type: "text", text: `DOM Snapshot:\n${domContent.slice(0, 15000)}` }] : []),
+          { type: "image_url", image_url: { url: `data:image/png;base64,${base64Image}` } },
+        ],
+      },
+    ];
+
+
     const response = await openai.chat.completions.create({
       model: MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a vision model that converts webpage screenshots into structured JSON describing UI elements.",
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: { url: `data:image/png;base64,${base64Image}` },
-            }
-          ],
-        },
-      ],
-      // temperature: 0,
+      messages,
     });
 
     const rawOutput = response.choices[0]?.message?.content?.trim() || "";
