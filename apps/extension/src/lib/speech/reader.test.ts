@@ -7,9 +7,35 @@ class MockUtterance {
   voice: SpeechSynthesisVoice | null = null;
   onend: (() => void) | null = null;
   onerror: ((event: { error: string }) => void) | null = null;
+  private boundaryListeners = new Set<
+    (event: { name: string; charIndex: number; charLength: number }) => void
+  >();
 
   constructor(text: string) {
     this.text = text;
+  }
+
+  addEventListener(
+    type: string,
+    listener: (event: {
+      name: string;
+      charIndex: number;
+      charLength: number;
+    }) => void,
+  ): void {
+    if (type === "boundary") {
+      this.boundaryListeners.add(listener);
+    }
+  }
+
+  dispatchBoundary(
+    name: string,
+    charIndex: number,
+    charLength: number,
+  ): void {
+    for (const listener of this.boundaryListeners) {
+      listener({ name, charIndex, charLength });
+    }
   }
 }
 
@@ -206,6 +232,72 @@ describe("SpeechReader", () => {
     expect(chrome.storage.local.set).toHaveBeenCalledWith({
       "geordi:speech-settings": expect.objectContaining({ rate: 1.5, voiceURI: "voice-1" }),
     });
+  });
+
+  it("emits word events from speech boundary callbacks", async () => {
+    mockSynth.speak = function (utterance: MockUtterance) {
+      this.speaking = true;
+      utterance.dispatchBoundary("word", 0, 5);
+      utterance.dispatchBoundary("word", 6, 5);
+      setTimeout(() => utterance.onend?.(), 0);
+    };
+
+    const reader = new SpeechReader();
+    const words: number[] = [];
+    reader.on((event) => {
+      if (event.type === "word") {
+        words.push(event.charIndex);
+      }
+    });
+
+    await reader.speakText("Hello world.");
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(words).toEqual([0, 6]);
+  });
+
+  it("speakText uses a single utterance", async () => {
+    const spoken: string[] = [];
+    mockSynth.speak = function (utterance: MockUtterance) {
+      this.speaking = true;
+      spoken.push(utterance.text);
+      setTimeout(() => utterance.onend?.(), 0);
+    };
+
+    const reader = new SpeechReader();
+    await reader.speakText("Alpha. Beta.");
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(spoken).toEqual(["Alpha. Beta."]);
+  });
+
+  it("pause and resume use speechSynthesis pause/resume in continuous mode", async () => {
+    mockSynth.speak = function (utterance: MockUtterance) {
+      this.speaking = true;
+    };
+
+    const reader = new SpeechReader();
+    await reader.speakText("One long passage.");
+    reader.pause();
+    expect(mockSynth.paused).toBe(true);
+
+    reader.resume();
+    expect(mockSynth.paused).toBe(false);
+  });
+
+  it("speakSentences uses pre-split queue without re-splitting", async () => {
+    const spoken: string[] = [];
+    mockSynth.speak = function (utterance: MockUtterance) {
+      this.speaking = true;
+      spoken.push(utterance.text);
+      setTimeout(() => utterance.onend?.(), 0);
+    };
+
+    const reader = new SpeechReader();
+    await reader.speakSentences(["Alpha.", "Beta."]);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(spoken).toEqual(["Alpha.", "Beta."]);
   });
 
   it("stop cancels synthesis", () => {

@@ -1,3 +1,6 @@
+import { computeSentenceStarts, sentencesToRanges } from "./range-map";
+import { isHiddenElement } from "./deep-dom";
+
 const SKIP_TAGS = new Set([
   "script",
   "style",
@@ -8,7 +11,31 @@ const SKIP_TAGS = new Set([
   "svg",
 ]);
 
-const BOILERPLATE_TAGS = new Set(["nav", "footer", "aside"]);
+const BOILERPLATE_TAGS = new Set(["nav", "footer", "aside", "header"]);
+
+const BOILERPLATE_ROLES = new Set([
+  "navigation",
+  "banner",
+  "contentinfo",
+  "complementary",
+]);
+
+export function isBoilerplateElement(el: Element): boolean {
+  const tag = el.tagName.toLowerCase();
+  if (BOILERPLATE_TAGS.has(tag)) return true;
+  const role = el.getAttribute("role")?.toLowerCase();
+  return role !== undefined && BOILERPLATE_ROLES.has(role);
+}
+
+const FORM_CONTROL_TAGS = new Set(["button", "input", "select", "textarea"]);
+
+const FORM_CONTROL_ROLES = new Set([
+  "button",
+  "checkbox",
+  "radio",
+  "switch",
+  "combobox",
+]);
 
 const LANDMARK_SELECTORS = [
   "main",
@@ -16,6 +43,28 @@ const LANDMARK_SELECTORS = [
   '[role="main"]',
   '[role="article"]',
 ];
+
+export interface TextSegment {
+  node: Text;
+  start: number;
+  end: number;
+  text: string;
+  offset: number;
+}
+
+export interface ReadingContent {
+  sentences: string[];
+  ranges: Range[];
+  segments: TextSegment[];
+  sentenceStarts: number[];
+  title?: string;
+}
+
+interface CollectOptions {
+  skipFormControls: boolean;
+  skipBoilerplate: boolean;
+  boundaryRange?: Range;
+}
 
 function isVisible(el: Element): boolean {
   if (!("getBoundingClientRect" in el)) return false;
@@ -50,13 +99,127 @@ function blockTags(tag: string): boolean {
   ].includes(tag);
 }
 
-function collectText(root: Element): string {
-  const parts: string[] = [];
+function isFormControlElement(el: Element): boolean {
+  const tag = el.tagName.toLowerCase();
+  if (FORM_CONTROL_TAGS.has(tag)) return true;
+  const role = el.getAttribute("role")?.toLowerCase();
+  return role !== undefined && FORM_CONTROL_ROLES.has(role);
+}
 
-  function walk(node: Node) {
+function isFormControlLabel(el: Element): boolean {
+  if (el.tagName.toLowerCase() !== "label") return false;
+
+  const doc = el.ownerDocument;
+  const forId = el.getAttribute("for");
+  if (forId) {
+    const target = doc.getElementById(forId);
+    if (target && isFormControlElement(target)) return true;
+  }
+
+  return el.querySelector("input, select, textarea, button") !== null;
+}
+
+function shouldSkipElement(el: Element, options: CollectOptions): boolean {
+  if (options.skipBoilerplate && isBoilerplateElement(el)) return true;
+  if (options.skipFormControls) {
+    if (isFormControlElement(el) || isFormControlLabel(el)) return true;
+  }
+
+  return false;
+}
+
+function getTextSliceInBoundary(
+  textNode: Text,
+  boundaryRange?: Range,
+): { start: number; end: number; text: string } | null {
+  const full = textNode.textContent ?? "";
+  if (!full) return null;
+
+  if (!boundaryRange) {
+    const normalized = full.replace(/\s+/g, " ").trim();
+    if (!normalized) return null;
+    const leading = full.match(/^\s*/)?.[0].length ?? 0;
+    const trailing = full.match(/\s*$/)?.[0].length ?? 0;
+    return {
+      start: leading,
+      end: full.length - trailing,
+      text: normalized,
+    };
+  }
+
+  if (!boundaryRange.intersectsNode(textNode)) return null;
+
+  const doc = textNode.ownerDocument;
+  const nodeRange = doc.createRange();
+  nodeRange.selectNodeContents(textNode);
+
+  let start = 0;
+  let end = full.length;
+
+  if (boundaryRange.compareBoundaryPoints(Range.START_TO_START, nodeRange) > 0) {
+    const preRange = doc.createRange();
+    preRange.setStart(nodeRange.startContainer, nodeRange.startOffset);
+    preRange.setEnd(boundaryRange.startContainer, boundaryRange.startOffset);
+    start = preRange.toString().length;
+  }
+
+  if (boundaryRange.compareBoundaryPoints(Range.END_TO_END, nodeRange) < 0) {
+    const preRange = doc.createRange();
+    preRange.setStart(nodeRange.startContainer, nodeRange.startOffset);
+    preRange.setEnd(boundaryRange.endContainer, boundaryRange.endOffset);
+    end = preRange.toString().length;
+  }
+
+  const raw = full.slice(start, end);
+  const normalized = raw.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+
+  const localLeading = raw.match(/^\s*/)?.[0].length ?? 0;
+  const localTrailing = raw.match(/\s*$/)?.[0].length ?? 0;
+
+  return {
+    start: start + localLeading,
+    end: end - localTrailing,
+    text: normalized,
+  };
+}
+
+
+function collectSegments(
+  root: Element,
+  options: CollectOptions,
+): { segments: TextSegment[]; fullText: string } {
+  let rawText = "";
+  const rawSegments: Omit<TextSegment, "offset">[] = [];
+
+  function appendPart(value: string): number {
+    if (!value) return rawText.length;
+    if (
+      rawText.length > 0 &&
+      !value.startsWith("\n") &&
+      !rawText.endsWith("\n")
+    ) {
+      rawText += " ";
+    }
+    const offset = rawText.length;
+    rawText += value;
+    return offset;
+  }
+
+  function walk(node: Node): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent?.replace(/\s+/g, " ").trim();
-      if (text) parts.push(text);
+      const textNode = node as Text;
+      const slice = getTextSliceInBoundary(textNode, options.boundaryRange);
+      if (!slice) return;
+
+      const offset = appendPart(slice.text);
+      rawSegments.push({
+        node: textNode,
+        start: slice.start,
+        end: slice.end,
+        text: slice.text,
+        offset,
+      });
       return;
     }
 
@@ -66,16 +229,17 @@ function collectText(root: Element): string {
     const tag = el.tagName.toLowerCase();
 
     if (SKIP_TAGS.has(tag)) return;
-    if (!isVisible(el)) return;
+    if (isHiddenElement(el)) return;
+    if (shouldSkipElement(el, options)) return;
 
     if (tag === "br") {
-      parts.push("\n");
+      appendPart("\n");
       return;
     }
 
     if (tag === "img") {
       const alt = el.getAttribute("alt")?.trim();
-      if (alt) parts.push(alt);
+      if (alt) appendPart(alt);
       return;
     }
 
@@ -84,37 +248,99 @@ function collectText(root: Element): string {
     }
 
     if (blockTags(tag)) {
-      parts.push("\n\n");
+      appendPart("\n\n");
     }
   }
 
   walk(root);
-  return parts.join(" ").replace(/\n{3,}/g, "\n\n").replace(/ +/g, " ").trim();
+
+  const fullText = rawText
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/ +/g, " ")
+    .trim();
+
+  if (!fullText) return { segments: [], fullText: "" };
+
+  // Recompute stream offsets against final normalized text.
+  let cursor = 0;
+  const aligned: TextSegment[] = [];
+
+  for (const segment of rawSegments) {
+    const idx = fullText.indexOf(segment.text, cursor);
+    if (idx === -1) continue;
+    aligned.push({ ...segment, offset: idx });
+    cursor = idx + segment.text.length;
+  }
+
+  return { segments: aligned, fullText };
 }
 
-function findContentRoot(doc: Document = document): Element {
+export function findContentRoot(doc: Document = document): {
+  root: Element;
+  skipBoilerplate: boolean;
+} {
   for (const selector of LANDMARK_SELECTORS) {
     const el = doc.querySelector(selector);
-    if (el && isVisible(el)) return el;
+    if (el && isVisible(el)) return { root: el, skipBoilerplate: false };
   }
 
-  const clone = doc.body.cloneNode(true) as HTMLElement;
-  for (const tag of BOILERPLATE_TAGS) {
-    clone.querySelectorAll(tag).forEach((node) => node.remove());
-  }
-  return clone;
+  return { root: doc.body, skipBoilerplate: true };
+}
+
+function buildReadingContent(
+  doc: Document,
+  root: Element,
+  options: CollectOptions,
+  title?: string,
+): ReadingContent {
+  const { segments, fullText } = collectSegments(root, options);
+  const sentences = splitIntoSentences(fullText);
+  const sentenceStarts = computeSentenceStarts(sentences, fullText);
+  const ranges = sentencesToRanges(doc, segments, sentences, fullText);
+
+  return { sentences, ranges, segments, sentenceStarts, title };
 }
 
 /** Extract readable plain text from the page for TTS. */
 export function extractPageText(doc: Document = document): string {
-  const root = findContentRoot(doc);
-  return collectText(root);
+  const { root, skipBoilerplate } = findContentRoot(doc);
+  const { fullText } = collectSegments(root, {
+    skipFormControls: true,
+    skipBoilerplate,
+  });
+  return fullText;
+}
+
+/** Extract page content as sentences with DOM ranges for highlighting. */
+export function extractPageReading(doc: Document = document): ReadingContent {
+  const { root, skipBoilerplate } = findContentRoot(doc);
+  return buildReadingContent(
+    doc,
+    root,
+    { skipFormControls: true, skipBoilerplate },
+    doc.title,
+  );
 }
 
 /** Extract the user's current text selection. */
 export function extractSelectionText(doc: Document = document): string {
   const selection = doc.getSelection();
   return selection?.toString().replace(/\s+/g, " ").trim() ?? "";
+}
+
+/** Extract selection as sentences with DOM ranges for highlighting. */
+export function extractSelectionReading(doc: Document = document): ReadingContent {
+  const selection = doc.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return { sentences: [], ranges: [], segments: [], sentenceStarts: [] };
+  }
+
+  const boundaryRange = selection.getRangeAt(0);
+  return buildReadingContent(doc, doc.body, {
+    skipFormControls: false,
+    skipBoilerplate: false,
+    boundaryRange,
+  });
 }
 
 /** Split text into paragraph-sized chunks for the speech queue. */
@@ -140,3 +366,5 @@ export function splitIntoSentences(text: string): string[] {
 export function buildSpeechQueue(chunks: string[]): string[] {
   return chunks.flatMap((chunk) => splitIntoSentences(chunk)).filter(Boolean);
 }
+
+export { isFormControlElement, isFormControlLabel };

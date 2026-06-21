@@ -38,11 +38,14 @@ geordi/
 | File | Purpose |
 |---|---|
 | `apps/extension/wxt.config.ts` | WXT + manifest config |
+| `apps/extension/package.json` | **Extension version** (semver; bump each user-facing PR) |
 | `apps/extension/src/entrypoints/background.ts` | Service worker, side panel, messaging |
-| `apps/extension/src/entrypoints/content.ts` | DOM extraction in page context |
+| `apps/extension/src/entrypoints/content.ts` | DOM wrapping, charIndex highlighting |
 | `apps/extension/src/entrypoints/sidepanel/` | Side panel UI |
-| `apps/extension/src/lib/content/extract.ts` | Page text extraction |
-| `apps/extension/src/lib/speech/reader.ts` | Web Speech API wrapper |
+| `apps/extension/src/lib/content/extract.ts` | Page text extraction, skip rules |
+| `apps/extension/src/lib/content/prepare-reading.ts` | Wrap page/selection before TTS |
+| `apps/extension/src/lib/content/wrap-for-reading.ts` | Word spans + highlight walk |
+| `apps/extension/src/lib/speech/reader.ts` | Web Speech API wrapper (`speakText`) |
 
 ## Environment variables
 

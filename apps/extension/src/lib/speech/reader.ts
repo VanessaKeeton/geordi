@@ -2,16 +2,11 @@ import {
   DEFAULT_SPEECH_SETTINGS,
   STORAGE_KEYS,
   type SpeechSettings,
+  type SpeechEvent,
 } from "../messages";
 import { buildSpeechQueue } from "../content/extract";
 
-export type SpeechEvent =
-  | { type: "start" }
-  | { type: "pause" }
-  | { type: "resume" }
-  | { type: "end" }
-  | { type: "error"; message: string }
-  | { type: "sentence"; index: number; total: number };
+export type { SpeechEvent };
 
 type SpeechListener = (event: SpeechEvent) => void;
 
@@ -21,6 +16,8 @@ export class SpeechReader {
   private paused = false;
   private stopped = false;
   private active = false;
+  private continuousMode = false;
+  private continuousText = "";
   private utteranceGeneration = 0;
   private settings: SpeechSettings = { ...DEFAULT_SPEECH_SETTINGS };
   private listeners = new Set<SpeechListener>();
@@ -73,6 +70,17 @@ export class SpeechReader {
     await this.saveSettings(settings);
     if (!this.active) return;
 
+    if (this.continuousMode) {
+      const wasPaused = this.paused;
+      this.cancelCurrentUtterance();
+      if (wasPaused) {
+        this.paused = true;
+        return;
+      }
+      this.speakContinuousText();
+      return;
+    }
+
     const wasPaused = this.paused;
     this.cancelCurrentUtterance();
 
@@ -108,8 +116,34 @@ export class SpeechReader {
   }
 
   async speak(chunks: string[]): Promise<void> {
+    await this.speakSentences(buildSpeechQueue(chunks.filter(Boolean)));
+  }
+
+  /** Speak full page/selection text as one utterance (for DOM charIndex highlighting). */
+  async speakText(text: string): Promise<void> {
     this.stop(false);
-    this.queue = buildSpeechQueue(chunks.filter(Boolean));
+    this.continuousMode = true;
+    this.continuousText = text.trim();
+    this.paused = false;
+    this.stopped = false;
+
+    if (!this.continuousText) {
+      this.continuousMode = false;
+      this.emit({ type: "end" });
+      return;
+    }
+
+    this.active = true;
+    await this.loadSettings();
+    this.emit({ type: "start" });
+    this.speakContinuousText();
+  }
+
+  /** Speak a pre-split sentence queue (legacy / chunk mode). */
+  async speakSentences(sentences: string[]): Promise<void> {
+    this.stop(false);
+    this.continuousMode = false;
+    this.queue = sentences.filter(Boolean);
     this.index = 0;
     this.paused = false;
     this.stopped = false;
@@ -128,6 +162,13 @@ export class SpeechReader {
   pause(): void {
     if (!this.active || this.paused) return;
     this.paused = true;
+
+    if (this.continuousMode && typeof speechSynthesis !== "undefined") {
+      speechSynthesis.pause();
+      this.emit({ type: "pause" });
+      return;
+    }
+
     this.cancelCurrentUtterance();
     this.emit({ type: "pause" });
   }
@@ -137,7 +178,12 @@ export class SpeechReader {
     this.paused = false;
     this.stopped = false;
     this.emit({ type: "resume" });
-    // Always restart the current sentence from its beginning.
+
+    if (this.continuousMode && typeof speechSynthesis !== "undefined") {
+      speechSynthesis.resume();
+      return;
+    }
+
     this.speakNext();
   }
 
@@ -145,6 +191,8 @@ export class SpeechReader {
     this.stopped = true;
     this.active = false;
     this.paused = false;
+    this.continuousMode = false;
+    this.continuousText = "";
     this.cancelCurrentUtterance();
     this.queue = [];
     this.index = 0;
@@ -160,6 +208,68 @@ export class SpeechReader {
     }
   }
 
+  private speakContinuousText(): void {
+    if (this.stopped || this.paused || !this.continuousText) {
+      if (!this.stopped && !this.paused && !this.continuousText) {
+        this.active = false;
+        this.continuousMode = false;
+        this.emit({ type: "end" });
+      }
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(this.continuousText);
+    utterance.rate = this.settings.rate;
+
+    const voices = this.getVoices();
+    if (this.settings.voiceURI) {
+      const voice = voices.find((v) => v.voiceURI === this.settings.voiceURI);
+      if (voice) utterance.voice = voice;
+    }
+
+    const generation = this.utteranceGeneration;
+
+    utterance.addEventListener("boundary", (event) => {
+      if (generation !== this.utteranceGeneration) return;
+      if (this.stopped || this.paused) return;
+
+      const name = event.name?.toLowerCase() ?? "";
+      const isWord = name.includes("word");
+      const isSentence = name.includes("sentence");
+      if (!isWord && !isSentence) return;
+
+      this.emit({
+        type: "word",
+        charIndex: event.charIndex,
+      });
+    });
+
+    utterance.onend = () => {
+      if (generation !== this.utteranceGeneration) return;
+      if (this.stopped || this.paused) return;
+      this.active = false;
+      this.continuousMode = false;
+      this.emit({ type: "end" });
+    };
+
+    utterance.onerror = (event) => {
+      if (generation !== this.utteranceGeneration) return;
+      if (this.stopped || this.paused) return;
+      if (event.error === "interrupted") return;
+      this.emit({
+        type: "error",
+        message: event.error ?? "Speech synthesis failed",
+      });
+      this.active = false;
+      this.continuousMode = false;
+      this.emit({ type: "end" });
+    };
+
+    if (typeof speechSynthesis !== "undefined") {
+      speechSynthesis.speak(utterance);
+    }
+  }
+
   private speakNext(): void {
     if (this.stopped || this.paused || this.index >= this.queue.length) {
       if (!this.stopped && !this.paused && this.index >= this.queue.length) {
@@ -170,12 +280,6 @@ export class SpeechReader {
     }
 
     const text = this.queue[this.index];
-    this.emit({
-      type: "sentence",
-      index: this.index,
-      total: this.queue.length,
-    });
-
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = this.settings.rate;
 
@@ -186,6 +290,22 @@ export class SpeechReader {
     }
 
     const generation = this.utteranceGeneration;
+
+    utterance.addEventListener("boundary", (event) => {
+      if (generation !== this.utteranceGeneration) return;
+      if (this.stopped || this.paused) return;
+
+      const name = event.name?.toLowerCase() ?? "";
+      const isWord = name.includes("word");
+      const isSentence = name.includes("sentence");
+      if (!isWord && !isSentence) return;
+
+      this.emit({
+        type: "word",
+        charIndex: event.charIndex,
+      });
+    });
+
     utterance.onend = () => {
       if (generation !== this.utteranceGeneration) return;
       if (this.stopped || this.paused) return;

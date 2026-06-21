@@ -4,7 +4,9 @@ Unresolved decisions. Add new questions here; remove when decided (and document 
 
 ## Active
 
-_None currently._
+| Question | Notes |
+|---|---|
+| Adaptive highlight contrast on dark pages | `contrast.ts` exists; wiring into `wrap-for-reading.ts` deferred post-#21. Fixed yellow/orange unreadable on white text. |
 
 ## Resolved
 

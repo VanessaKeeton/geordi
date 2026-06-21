@@ -29,4 +29,6 @@ Load the extension from `apps/extension/.output/chrome-mv3-dev` in `chrome://ext
 
 One GitHub issue → one branch → one PR → review → merge.
 
+**Version:** Bump `apps/extension/package.json` in every PR that ships user-visible extension changes. See [docs/CONVENTIONS.md](docs/CONVENTIONS.md#versioning).
+
 Phase 1 epic: https://github.com/VanessaKeeton/geordi/issues/2
