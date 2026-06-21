@@ -14,8 +14,8 @@ alwaysApply: false
 
 ## Entrypoints
 
-- `background.ts` — service worker; side panel registration, message relay
-- `content.ts` — runs in page context; DOM extraction only
+- `background.ts` — service worker; side panel registration, message relay, reading-tab pinning
+- `content.ts` — runs in page context; DOM wrapping and charIndex highlighting
 - `sidepanel/` — user UI; speech controls and settings
 
 ## Messaging
@@ -27,9 +27,14 @@ Use typed messages from `lib/messages.ts`. Pattern:
 chrome.runtime.sendMessage({ type: "GET_PAGE_READING" });
 ```
 
-Content script returns `{ type: "PAGE_READING", sentences, title }` or `{ type: "ERROR", message }`.
-Highlight commands: `{ type: "HIGHLIGHT_SENTENCE", index }`, `{ type: "HIGHLIGHT_WORD", sentenceIndex, charIndex, charLength }`, `{ type: "CLEAR_HIGHLIGHT" }`.
-Speech runs in the side panel (Web Speech API); highlighting runs in the content script.
+Content script returns `{ type: "PAGE_READING", text, title }` or `{ type: "ERROR", message }`.
+
+Highlight flow (speechify-dry-run pattern):
+- `{ type: "HIGHLIGHT_AT_CHAR", charIndex }` — word highlight at global char index
+- `{ type: "CLEAR_HIGHLIGHT" }` — clear highlight styles only
+- `{ type: "TEARDOWN_READING" }` — unwrap DOM spans after stop/end
+
+Speech runs in the side panel via `SpeechReader.speakText()` (single utterance); highlighting runs in the content script.
 
 ## Storage
 
