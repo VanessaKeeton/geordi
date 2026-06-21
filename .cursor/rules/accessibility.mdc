@@ -1,0 +1,37 @@
+---
+description: Accessibility requirements for all Geordi UI work
+globs: apps/extension/src/entrypoints/sidepanel/**
+alwaysApply: false
+---
+
+# Accessibility Rules
+
+All Geordi UI must meet WCAG 2.2 AA minimum.
+
+## HTML
+
+- Use semantic elements: `button`, `fieldset`, `legend`, `label`, `select`, `main`, `section`
+- Never use `<div onclick>` for interactive controls
+- Every form control has an associated `<label>`
+
+## ARIA
+
+- Status updates use `role="status"` with `aria-live="polite"`
+- Decorative elements use `aria-hidden="true"` or `.visually-hidden` class
+- Section headings use `aria-labelledby` on `<section>`
+
+## Keyboard
+
+- All controls reachable via Tab
+- `:focus-visible` outline on every interactive element (3px, high contrast)
+- No keyboard traps
+
+## Visual
+
+- WCAG 2.2 AA contrast ratio (4.5:1 for text, 3:1 for large text)
+- Respect `prefers-reduced-motion: reduce`
+- Respect `prefers-color-scheme: dark`
+
+## Testing
+
+Manual checklist in `docs/TESTING.md`. Any UI PR must pass keyboard-only navigation.

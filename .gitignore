@@ -13,9 +13,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Screenshots & outputs
-screenshots/
-output/
+# Build outputs
+.output/
+dist/
+.wxt/
+
+# Extension zips
+*.zip
+
 *.log
 *.tmp
 
