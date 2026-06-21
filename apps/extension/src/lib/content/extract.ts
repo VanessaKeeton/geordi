@@ -11,7 +11,21 @@ const SKIP_TAGS = new Set([
   "svg",
 ]);
 
-const BOILERPLATE_TAGS = new Set(["nav", "footer", "aside"]);
+const BOILERPLATE_TAGS = new Set(["nav", "footer", "aside", "header"]);
+
+const BOILERPLATE_ROLES = new Set([
+  "navigation",
+  "banner",
+  "contentinfo",
+  "complementary",
+]);
+
+export function isBoilerplateElement(el: Element): boolean {
+  const tag = el.tagName.toLowerCase();
+  if (BOILERPLATE_TAGS.has(tag)) return true;
+  const role = el.getAttribute("role")?.toLowerCase();
+  return role !== undefined && BOILERPLATE_ROLES.has(role);
+}
 
 const FORM_CONTROL_TAGS = new Set(["button", "input", "select", "textarea"]);
 
@@ -106,9 +120,7 @@ function isFormControlLabel(el: Element): boolean {
 }
 
 function shouldSkipElement(el: Element, options: CollectOptions): boolean {
-  const tag = el.tagName.toLowerCase();
-
-  if (options.skipBoilerplate && BOILERPLATE_TAGS.has(tag)) return true;
+  if (options.skipBoilerplate && isBoilerplateElement(el)) return true;
   if (options.skipFormControls) {
     if (isFormControlElement(el) || isFormControlLabel(el)) return true;
   }

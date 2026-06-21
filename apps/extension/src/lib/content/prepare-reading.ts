@@ -39,15 +39,15 @@ export function clearWrappedReading(): void {
 export function preparePageReading(doc: Document = document): PageReadingResult {
   clearWrappedReading();
 
-  const { skipBoilerplate } = findContentRoot(doc);
-  const root = doc.body;
+  const { root, skipBoilerplate } = findContentRoot(doc);
 
-  wrapForReading(root, {
+  wrapForReading(doc.body, {
     skipFormControls: true,
     skipBoilerplate,
+    contentRoot: root,
   });
 
-  wrappedRoot = root;
+  wrappedRoot = doc.body;
   wrappedDoc = doc;
   const text = getWrappedSpeakableText(doc);
 

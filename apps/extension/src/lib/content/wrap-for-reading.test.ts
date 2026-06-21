@@ -124,6 +124,26 @@ describe("wrap-for-reading", () => {
     expect(shadow.querySelectorAll("[data-geordi-word]").length).toBeGreaterThan(0);
   });
 
+  it("scopes wrapping to the content root", () => {
+    const main = document.createElement("main");
+    main.innerHTML = "<p>Inside main only.</p>";
+    const nav = document.createElement("nav");
+    nav.textContent = "Skip navigation";
+    document.body.append(nav, main);
+
+    wrapForReading(document.body, {
+      skipFormControls: true,
+      skipBoilerplate: true,
+      contentRoot: main,
+    });
+
+    const text = getWrappedSpeakableText(document);
+    expect(text).toContain("Inside main only.");
+    expect(text).not.toContain("Skip navigation");
+    nav.remove();
+    main.remove();
+  });
+
   it("unwrap restores original text nodes", () => {
     wrapForReading(container, {
       skipFormControls: true,

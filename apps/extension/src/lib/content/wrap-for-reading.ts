@@ -2,9 +2,11 @@ import {
   ancestorElements,
   collectTextNodesDeep,
   isHiddenElement,
+  isNodeInSubtree,
   queryAllDeep,
 } from "./deep-dom";
 import {
+  isBoilerplateElement,
   isFormControlElement,
   isFormControlLabel,
 } from "./extract";
@@ -19,8 +21,6 @@ const SKIP_TAGS = new Set([
   "svg",
 ]);
 
-const BOILERPLATE_TAGS = new Set(["nav", "footer", "aside"]);
-
 export const SENTENCE_ATTR = "data-geordi-sentence";
 export const WORD_ATTR = "data-geordi-word";
 export const WRAPPED_ATTR = "data-geordi-wrapped";
@@ -32,6 +32,7 @@ export const HL_WORD_CLASS = "geordi-hl-word";
 export interface WrapOptions {
   skipFormControls: boolean;
   skipBoilerplate: boolean;
+  contentRoot?: Element;
   boundaryRange?: Range;
 }
 
@@ -60,7 +61,7 @@ function shouldSkipElement(el: Element, options: WrapOptions): boolean {
   const tag = el.tagName.toLowerCase();
   if (SKIP_TAGS.has(tag)) return true;
   if (isHiddenElement(el)) return true;
-  if (options.skipBoilerplate && BOILERPLATE_TAGS.has(tag)) return true;
+  if (options.skipBoilerplate && isBoilerplateElement(el)) return true;
   if (options.skipFormControls) {
     if (isFormControlElement(el) || isFormControlLabel(el)) return true;
   }
@@ -69,6 +70,10 @@ function shouldSkipElement(el: Element, options: WrapOptions): boolean {
 
 function shouldSkipTextNode(textNode: Text, options: WrapOptions): boolean {
   if (options.boundaryRange && !options.boundaryRange.intersectsNode(textNode)) {
+    return true;
+  }
+
+  if (options.contentRoot && !isNodeInSubtree(textNode, options.contentRoot)) {
     return true;
   }
 

@@ -74,6 +74,14 @@ export function ancestorElements(node: Node): Element[] {
   return elements;
 }
 
+/** True when a node lives inside root, including across open shadow roots. */
+export function isNodeInSubtree(node: Node, root: Element): boolean {
+  for (const el of ancestorElements(node)) {
+    if (el === root || root.contains(el)) return true;
+  }
+  return false;
+}
+
 /** True when an element is explicitly hidden (not merely zero-size). */
 export function isHiddenElement(el: Element): boolean {
   const view = el.ownerDocument.defaultView;

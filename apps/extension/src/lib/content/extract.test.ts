@@ -37,6 +37,19 @@ describe("extractPageText", () => {
     expect(text).not.toContain("Copyright notice");
   });
 
+  it("skips header and role=navigation regions when using body fallback", () => {
+    const doc = dom(`
+      <body>
+        <header role="banner"><a>Home</a> <a>Sign in</a></header>
+        <p>Article body text here.</p>
+      </body>
+    `);
+    const text = extractPageText(doc);
+    expect(text).toContain("Article body text");
+    expect(text).not.toContain("Sign in");
+    expect(text).not.toContain("Home");
+  });
+
   it("ignores hidden elements", () => {
     const doc = dom(`
       <body>
