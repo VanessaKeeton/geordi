@@ -1,24 +1,25 @@
 {
   "name": "geordi",
-  "version": "1.0.0",
+  "version": "0.2.0",
+  "private": true,
   "type": "module",
-  "description": "Geordi accessibility project — Vision In, Vision Out",
+  "description": "Geordi accessibility browser extension",
   "scripts": {
-    "geordi:capture": "node scripts/capture.js",
-    "geordi:clean": "rm -rf screenshots && rm -rf output",
-    "geordi:send": "node scripts/sendToModel.js",
+    "dev:ext": "pnpm --filter @geordi/extension dev",
+    "build:ext": "pnpm --filter @geordi/extension build",
     "test": "vitest",
     "test:run": "vitest run"
   },
   "author": "Vanessa Keeton",
   "license": "MIT",
-  "dependencies": {
-    "openai": "^6.2.0",
-    "puppeteer": "^24.23.0"
-  },
   "devDependencies": {
     "eslint": "^9.37.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.3",
     "vite": "^7.1.9",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "spawn-sync"]
   }
 }

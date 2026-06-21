@@ -1,0 +1,51 @@
+---
+description: WXT extension patterns, MV3 messaging, and chrome.storage usage
+globs: apps/extension/**
+alwaysApply: false
+---
+
+# Extension Development Rules
+
+## Stack
+
+- WXT + TypeScript + Manifest V3
+- Entrypoints in `apps/extension/src/entrypoints/`
+- Shared logic in `apps/extension/src/lib/`
+
+## Entrypoints
+
+- `background.ts` — service worker; side panel registration, message relay
+- `content.ts` — runs in page context; DOM extraction only
+- `sidepanel/` — user UI; speech controls and settings
+
+## Messaging
+
+Use typed messages from `lib/messages.ts`. Pattern:
+
+```typescript
+// side panel → background → content script
+chrome.runtime.sendMessage({ type: "GET_PAGE_TEXT" });
+```
+
+Content script returns `{ type: "PAGE_TEXT", text, title }` or `{ type: "ERROR", message }`.
+
+## Storage
+
+User preferences in `chrome.storage.local`:
+- Key: `geordi:speech-settings`
+- Shape: `{ voiceURI: string | null, rate: number }`
+
+## Permissions
+
+Current: `activeTab`, `sidePanel`, `storage`, `scripting`, `<all_urls>` host permission for content scripts.
+
+Do not add permissions without justification in an ADR.
+
+## Build
+
+```bash
+pnpm dev:ext    # development
+pnpm build:ext  # production
+```
+
+Output: `apps/extension/.output/`

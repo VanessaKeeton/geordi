@@ -1,0 +1,31 @@
+---
+description: Geordi project mission, constraints, and free/paid boundary
+alwaysApply: true
+---
+
+# Geordi Project Rules
+
+Geordi is an open-source accessibility browser extension. Mission: help people with disabilities "see" the web as well as anyone.
+
+## Hard constraints
+
+- Core reading features (read page, read selection, play/pause/stop, system voices) are ALWAYS free
+- Core reading must work with zero API keys and zero network calls
+- Never gate accessibility behind a paywall
+- All UI must be keyboard-navigable and screen-reader friendly
+
+## Free vs paid
+
+| Free | Paid or BYOK (Phase 3+) |
+|---|---|
+| Read page/selection | Page summarization |
+| System voices (Web Speech API) | Plain-English AI navigation |
+| Heading/link navigation (Phase 2) | Premium human voices (Phase 4) |
+
+## License
+
+Prosperity Public License 3.0.0 — do not change LICENSE.md without human review.
+
+## Workflow
+
+One GitHub issue → one PR. Update docs/agent/HANDOFF.md at session end.

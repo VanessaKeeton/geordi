@@ -1,0 +1,16 @@
+{
+  "name": "@geordi/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Geordi accessibility browser extension",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "wxt": "^0.20.7"
+  }
+}
