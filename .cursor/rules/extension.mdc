@@ -24,10 +24,12 @@ Use typed messages from `lib/messages.ts`. Pattern:
 
 ```typescript
 // side panel → background → content script
-chrome.runtime.sendMessage({ type: "GET_PAGE_TEXT" });
+chrome.runtime.sendMessage({ type: "GET_PAGE_READING" });
 ```
 
-Content script returns `{ type: "PAGE_TEXT", text, title }` or `{ type: "ERROR", message }`.
+Content script returns `{ type: "PAGE_READING", sentences, title }` or `{ type: "ERROR", message }`.
+Highlight commands: `{ type: "HIGHLIGHT_SENTENCE", index }`, `{ type: "HIGHLIGHT_WORD", sentenceIndex, charIndex, charLength }`, `{ type: "CLEAR_HIGHLIGHT" }`.
+Speech runs in the side panel (Web Speech API); highlighting runs in the content script.
 
 ## Storage
 

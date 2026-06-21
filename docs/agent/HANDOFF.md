@@ -1,42 +1,37 @@
 # Agent Handoff
 
 **Last updated:** 2026-06-21  
-**Last agent task:** Phase 1 implementation — extension scaffold through tests and docs
+**Last agent task:** #21 — Skip form controls in page read + follow-along highlighting
 
 ## Current state
 
-- WXT extension scaffolded under `apps/extension/`
-- Side panel UI with read page, read selection, play/pause/stop, voice/speed controls
-- Content extraction and Web Speech API modules implemented
-- Background service worker wires side panel + keyboard shortcut
-- Legacy CLI archived to `legacy/`
-- Unit tests for extraction and speech modules
-- Agent docs and Cursor rules in place
+- WXT extension with side panel reading UI
+- Read page skips buttons/form inputs; keeps link text in articles
+- Follow-along highlighting uses the [speechify-dry-run](https://github.com/VanessaKeeton/speechify-dry-run) pattern:
+  - Content script wraps readable text in word/sentence spans
+  - Side panel speaks **one full utterance** via `SpeechReader.speakText()`
+  - `boundary` `charIndex` maps to spans in the same page DOM
+- Pause/resume in continuous mode uses `speechSynthesis.pause()` / `resume()`
+- 40 unit tests passing
 
 ## Completed this session
 
-- [x] pnpm workspace + WXT scaffold (#3)
-- [x] Archive legacy CLI (#4)
-- [x] Agent handoff docs + Cursor rules (#5)
-- [x] Project doc scaffolds + ADR 001 (#6)
-- [x] Background service worker (#7)
-- [x] Side panel UI shell (#8)
-- [x] Content extraction module (#9)
-- [x] Web Speech API module (#10)
-- [x] Wire Read page + Read selection (#11, #12)
-- [x] Voice picker, speed, persistence (#13)
-- [x] Unit tests (#14, #15)
-- [x] README + VISION.md updates (#16)
+- [x] Skip buttons and form inputs during Read page extraction
+- [x] `wrap-for-reading.ts` — DOM span wrapping + charIndex highlight walk
+- [x] `prepare-reading.ts` — wrap page/selection before TTS
+- [x] Messaging: `PAGE_READING.text`, `HIGHLIGHT_AT_CHAR`, `TEARDOWN_READING`
+- [x] `SpeechReader.speakText()` single-utterance mode
+- [x] Unit tests for wrap-for-reading and reader continuous mode
 
 ## Next up (priority order)
 
-1. Manual testing in Chrome with a screen reader
+1. **Manual testing in Chrome** — reload extension, verify highlight tracks speech on a real page (#21)
 2. Phase 2: Structured navigation (#17) — heading list, link list
 3. Phase 3: AI features stub → BYOK (#18)
 
 ## Known blockers
 
-- None
+- None — highlight alignment depends on browser `boundary` event support (Chrome)
 
 ## Do not touch
 

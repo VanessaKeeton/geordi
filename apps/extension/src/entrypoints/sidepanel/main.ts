@@ -1,6 +1,3 @@
-import {
-  splitIntoParagraphs,
-} from "../../lib/content/extract";
 import type { GeordiMessage } from "../../lib/messages";
 import { createSpeechReader } from "../../lib/speech/reader";
 
@@ -10,7 +7,7 @@ const speedRange = document.getElementById("speed-range") as HTMLInputElement;
 const speedValue = document.getElementById("speed-value")!;
 
 const reader = createSpeechReader();
-let pendingChunks: string[] = [];
+let pendingText = "";
 
 function setStatus(message: string) {
   statusEl.textContent = message;
@@ -20,40 +17,55 @@ function requestFromActiveTab(message: GeordiMessage): Promise<GeordiMessage> {
   return chrome.runtime.sendMessage(message);
 }
 
-async function loadPageText(): Promise<string[]> {
-  setStatus("Extracting page content…");
-  const response = await requestFromActiveTab({ type: "GET_PAGE_TEXT" });
-
-  if (response.type === "ERROR") {
-    throw new Error(response.message);
-  }
-  if (response.type !== "PAGE_TEXT") {
-    throw new Error("Unexpected response from content script");
-  }
-
-  const chunks = splitIntoParagraphs(response.text);
-  if (chunks.length === 0) {
-    throw new Error("No readable content found on this page");
-  }
-  return chunks;
+function sendToActiveTab(message: GeordiMessage): void {
+  void chrome.runtime.sendMessage(message);
 }
 
-async function loadSelectionText(): Promise<string[]> {
-  setStatus("Reading selection…");
-  const response = await requestFromActiveTab({ type: "GET_SELECTION_TEXT" });
+function highlightAtChar(charIndex: number) {
+  sendToActiveTab({ type: "HIGHLIGHT_AT_CHAR", charIndex });
+}
+
+function clearHighlight() {
+  sendToActiveTab({ type: "CLEAR_HIGHLIGHT" });
+}
+
+function teardownReading() {
+  sendToActiveTab({ type: "TEARDOWN_READING" });
+}
+
+async function loadPageReading(): Promise<string> {
+  setStatus("Extracting page content…");
+  const response = await requestFromActiveTab({ type: "GET_PAGE_READING" });
 
   if (response.type === "ERROR") {
     throw new Error(response.message);
   }
-  if (response.type !== "SELECTION_TEXT") {
+  if (response.type !== "PAGE_READING") {
     throw new Error("Unexpected response from content script");
   }
 
-  if (!response.text) {
+  if (!response.text.trim()) {
+    throw new Error("No readable content found on this page");
+  }
+  return response.text;
+}
+
+async function loadSelectionReading(): Promise<string> {
+  setStatus("Reading selection…");
+  const response = await requestFromActiveTab({ type: "GET_SELECTION_READING" });
+
+  if (response.type === "ERROR") {
+    throw new Error(response.message);
+  }
+  if (response.type !== "SELECTION_READING") {
+    throw new Error("Unexpected response from content script");
+  }
+
+  if (!response.text.trim()) {
     throw new Error("No text selected. Highlight text on the page first.");
   }
 
-  return splitIntoParagraphs(response.text);
+  return response.text;
 }
 
 function populateVoices() {
@@ -89,26 +101,29 @@ reader.on((event) => {
       break;
     case "pause":
       setStatus("Paused.");
+      clearHighlight();
       break;
     case "resume":
       setStatus("Reading…");
       break;
     case "end":
       setStatus("Finished.");
+      clearHighlight();
+      teardownReading();
       break;
     case "error":
       setStatus(`Error: ${event.message}`);
       break;
-    case "sentence":
-      setStatus(`Reading sentence ${event.index + 1} of ${event.total}…`);
+    case "word":
+      highlightAtChar(event.charIndex);
       break;
   }
 });
 
 document.getElementById("read-page")!.addEventListener("click", async () => {
   try {
-    pendingChunks = await loadPageText();
-    await reader.speak(pendingChunks);
+    pendingText = await loadPageReading();
+    await reader.speakText(pendingText);
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to read page");
   }
@@ -116,8 +131,8 @@ document.getElementById("read-page")!.addEventListener("click", async () => {
 
 document.getElementById("read-selection")!.addEventListener("click", async () => {
   try {
-    pendingChunks = await loadSelectionText();
-    await reader.speak(pendingChunks);
+    pendingText = await loadSelectionReading();
+    await reader.speakText(pendingText);
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to read selection");
   }
@@ -133,8 +148,8 @@ document.getElementById("play")!.addEventListener("click", async () => {
     return;
   }
 
-  if (pendingChunks.length > 0) {
-    await reader.speak(pendingChunks);
+  if (pendingText.trim()) {
+    await reader.speakText(pendingText);
   } else {
     setStatus("Use Read page or Read selection first.");
   }
@@ -146,6 +161,8 @@ document.getElementById("pause")!.addEventListener("click", () => {
 
 document.getElementById("stop")!.addEventListener("click", () => {
   reader.stop();
+  clearHighlight();
+  teardownReading();
   setStatus("Stopped.");
 });
 

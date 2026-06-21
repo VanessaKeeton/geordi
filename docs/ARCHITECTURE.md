@@ -11,12 +11,15 @@ flowchart LR
   Content[Content Script]
   Page[Web Page DOM]
 
-  SidePanel -->|"GET_PAGE_TEXT"| Background
+  SidePanel -->|"GET_PAGE_READING"| Background
   Background -->|"forward"| Content
-  Content -->|"extractPageText"| Page
-  Content -->|"PAGE_TEXT"| Background
-  Background -->|"PAGE_TEXT"| SidePanel
+  Content -->|"extractPageReading"| Page
+  Content -->|"PAGE_READING"| Background
+  Background -->|"PAGE_READING"| SidePanel
   SidePanel -->|"SpeechReader"| TTS[Web Speech API]
+  SidePanel -->|"HIGHLIGHT_SENTENCE"| Background
+  Background -->|"forward"| Content
+  Content -->|"highlightRange"| Page
 ```
 
 ## Extension contexts
@@ -24,14 +27,17 @@ flowchart LR
 | Context | Entrypoint | Role |
 |---|---|---|
 | Background | `entrypoints/background.ts` | Side panel registration, keyboard shortcut, message relay |
-| Content | `entrypoints/content.ts` | DOM access — extract page/selection text |
+| Content | `entrypoints/content.ts` | DOM extraction, sentence highlighting |
 | Side panel | `entrypoints/sidepanel/` | User controls, TTS playback, settings |
 
 ## Modules
 
 | Module | Path | Purpose |
 |---|---|---|
-| Content extraction | `lib/content/extract.ts` | DOM → plain text for TTS |
+| Content extraction | `lib/content/extract.ts` | DOM → sentences + Range mapping for TTS |
+| Range mapping | `lib/content/range-map.ts` | Stream offsets → live DOM Ranges |
+| Highlight | `lib/content/highlight.ts` | CSS Highlight API, adaptive color, auto-scroll |
+| Contrast | `lib/content/contrast.ts` | WCAG contrast helpers for highlight palette |
 | Speech reader | `lib/speech/reader.ts` | Web Speech API queue, pause/resume, settings |
 | Messages | `lib/messages.ts` | Typed message contracts between contexts |
 | AI provider | `lib/ai/provider.ts` | Stub for Phase 3 BYOK/paid features |
@@ -39,11 +45,12 @@ flowchart LR
 ## Message flow: Read page
 
 1. User clicks "Read page" in side panel
-2. Side panel sends `{ type: "GET_PAGE_TEXT" }` to background
+2. Side panel sends `{ type: "GET_PAGE_READING" }` to background
 3. Background forwards to content script in active tab
-4. Content script runs `extractPageText()`, returns `{ type: "PAGE_TEXT", text, title }`
-5. Side panel splits text into paragraphs, feeds to `SpeechReader`
-6. `SpeechReader` speaks via `speechSynthesis`, emits status events to UI live region
+4. Content script runs `extractPageReading()` — skips buttons/form inputs, returns `{ type: "PAGE_READING", sentences, title }` and stores `Range[]` in session
+5. Side panel passes sentences to `SpeechReader.speakSentences()`
+6. On each sentence event, side panel sends `{ type: "HIGHLIGHT_SENTENCE", index }`; content script highlights and scrolls
+7. On pause/stop/end, side panel sends `{ type: "CLEAR_HIGHLIGHT" }`
 
 ## Storage
 
