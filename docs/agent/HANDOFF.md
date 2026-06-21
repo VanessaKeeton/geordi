@@ -14,6 +14,7 @@
   - `boundary` `charIndex` maps to spans in the same page DOM
 - Open shadow DOM supported via `deep-dom.ts`; highlight messages pinned to reading tab in background
 - Pause/resume in continuous mode uses `speechSynthesis.pause()` / `resume()`
+- Extension version **0.2.0** (`apps/extension/package.json`)
 - 43 unit tests passing; manual testing confirmed on article pages and Google News
 
 ## Completed this session
@@ -23,6 +24,7 @@
 - [x] Messaging: `PAGE_READING.text`, `HIGHLIGHT_AT_CHAR`, `CLEAR_HIGHLIGHT`, `TEARDOWN_READING`
 - [x] `SpeechReader.speakText()` single-utterance mode
 - [x] PR #22 opened; user-verified working on real pages
+- [x] Extension version bumped `0.1.0` → `0.2.0`; versioning rule added to agent docs
 
 ## Next up (priority order)
 

@@ -30,6 +30,20 @@
 - One issue per PR
 - Commit messages: imperative mood, reference issue number
 
+## Versioning
+
+The extension version lives in `apps/extension/package.json`. WXT copies it to `manifest.version` on build.
+
+**Bump the version in every PR** that changes what users install. Use [semver](https://semver.org/) while pre-1.0:
+
+| Segment | When to bump | Example |
+|---|---|---|
+| **PATCH** (`0.1.0` → `0.1.1`) | Bug fixes, refactors, docs-only, no user-visible behavior change | Fix pause/resume edge case |
+| **MINOR** (`0.1.0` → `0.2.0`) | New features or meaningful UX improvements | Follow-along highlighting, skip nav on read |
+| **MAJOR** (`0.x` → `1.0.0`) | Breaking changes, permission manifest changes requiring re-consent, settings migrations | 1.0 public launch |
+
+Do not bump the root `package.json` version unless the monorepo release process changes; the extension package is the product version Chrome displays.
+
 ## Accessibility
 
 - Semantic HTML in all UI (`button`, `fieldset`, `legend`, `label`)

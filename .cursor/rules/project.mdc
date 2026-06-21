@@ -28,4 +28,4 @@ Prosperity Public License 3.0.0 — do not change LICENSE.md without human revie
 
 ## Workflow
 
-One GitHub issue → one PR. Update docs/agent/HANDOFF.md at session end.
+One GitHub issue → one PR. Update `docs/agent/HANDOFF.md` at session end. Bump `apps/extension/package.json` version in each PR with user-visible changes (see `docs/CONVENTIONS.md#versioning`).

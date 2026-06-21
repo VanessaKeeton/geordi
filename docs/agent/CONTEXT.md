@@ -38,6 +38,7 @@ geordi/
 | File | Purpose |
 |---|---|
 | `apps/extension/wxt.config.ts` | WXT + manifest config |
+| `apps/extension/package.json` | **Extension version** (semver; bump each user-facing PR) |
 | `apps/extension/src/entrypoints/background.ts` | Service worker, side panel, messaging |
 | `apps/extension/src/entrypoints/content.ts` | DOM wrapping, charIndex highlighting |
 | `apps/extension/src/entrypoints/sidepanel/` | Side panel UI |

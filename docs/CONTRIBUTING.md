@@ -11,6 +11,7 @@
 ## PR checklist
 
 - [ ] Issue referenced in PR description
+- [ ] Extension version bumped in `apps/extension/package.json` (see [CONVENTIONS.md](CONVENTIONS.md#versioning))
 - [ ] Tests pass (`pnpm test:run`)
 - [ ] Extension builds (`pnpm build:ext`)
 - [ ] UI changes are keyboard-navigable
