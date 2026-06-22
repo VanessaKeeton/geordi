@@ -44,6 +44,7 @@ export function ensureHighlightStyles(doc: Document = document): void {
   style.textContent = `
     [${SENTENCE_ATTR}].${HL_SENTENCE_CLASS} {
       background-color: rgba(255, 238, 153, 0.92) !important;
+      color: #111 !important;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
