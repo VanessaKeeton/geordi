@@ -1,11 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { contrastRatio } from "./contrast";
 import {
+  clearReadingStyles,
   getWrappedSpeakableText,
   highlightAtCharIndex,
+  HL_SENTENCE_CLASS,
+  HL_SENTENCE_FG_VAR,
   HL_WORD_CLASS,
+  HL_WORD_FG_VAR,
   unwrapReadingMarkup,
   wrapForReading,
 } from "./wrap-for-reading";
+
+function parseRgb(value: string): [number, number, number] {
+  const match = value.match(/(\d+)\D+(\d+)\D+(\d+)/);
+  if (!match) throw new Error(`not an rgb value: ${value}`);
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
 
 describe("wrap-for-reading", () => {
   let container: HTMLDivElement;
@@ -47,6 +58,8 @@ describe("wrap-for-reading", () => {
 
   afterEach(() => {
     unwrapReadingMarkup(container);
+    document.documentElement.style.removeProperty(HL_SENTENCE_FG_VAR);
+    document.documentElement.style.removeProperty(HL_WORD_FG_VAR);
     document.body.innerHTML = "";
   });
 
@@ -142,6 +155,84 @@ describe("wrap-for-reading", () => {
     expect(text).not.toContain("Skip navigation");
     nav.remove();
     main.remove();
+  });
+
+  describe("adaptive highlight contrast", () => {
+    function highlightFirstWord(): void {
+      wrapForReading(container, {
+        skipFormControls: true,
+        skipBoilerplate: false,
+      });
+      const found = highlightAtCharIndex(container, 0);
+      expect(found).toBe(true);
+    }
+
+    it("keeps highlighted text readable on a dark page with light text", () => {
+      container.setAttribute(
+        "style",
+        "background-color: rgb(18, 18, 18); color: rgb(240, 240, 240)",
+      );
+      highlightFirstWord();
+
+      const sentenceFg = parseRgb(
+        document.documentElement.style.getPropertyValue(HL_SENTENCE_FG_VAR),
+      );
+      const wordFg = parseRgb(
+        document.documentElement.style.getPropertyValue(HL_WORD_FG_VAR),
+      );
+
+      // Light page text would be unreadable on the light/orange fills, so it is
+      // overridden to black for both the sentence and the active word.
+      expect(sentenceFg).toEqual([0, 0, 0]);
+      expect(wordFg).toEqual([0, 0, 0]);
+      expect(contrastRatio(sentenceFg, [236, 220, 142])).toBeGreaterThanOrEqual(
+        4.5,
+      );
+      expect(contrastRatio(wordFg, [243, 134, 1])).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("preserves dark page text on a light page", () => {
+      container.setAttribute(
+        "style",
+        "background-color: rgb(255, 255, 255); color: rgb(17, 17, 17)",
+      );
+      highlightFirstWord();
+
+      const sentenceFg = parseRgb(
+        document.documentElement.style.getPropertyValue(HL_SENTENCE_FG_VAR),
+      );
+      const wordFg = parseRgb(
+        document.documentElement.style.getPropertyValue(HL_WORD_FG_VAR),
+      );
+
+      // Dark page text already meets AA against the light fills, so it is kept.
+      expect(sentenceFg).toEqual([17, 17, 17]);
+      expect(wordFg).toEqual([17, 17, 17]);
+    });
+
+    it("removes highlight color variables when styles are cleared", () => {
+      container.setAttribute(
+        "style",
+        "background-color: rgb(18, 18, 18); color: rgb(240, 240, 240)",
+      );
+      highlightFirstWord();
+      expect(
+        document.documentElement.style.getPropertyValue(HL_SENTENCE_FG_VAR),
+      ).not.toBe("");
+
+      clearReadingStyles(container);
+
+      expect(
+        container.querySelector(`.${HL_SENTENCE_CLASS}`),
+      ).toBeNull();
+      expect(container.querySelector(`.${HL_WORD_CLASS}`)).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue(HL_SENTENCE_FG_VAR),
+      ).toBe("");
+      expect(
+        document.documentElement.style.getPropertyValue(HL_WORD_FG_VAR),
+      ).toBe("");
+    });
   });
 
   it("unwrap restores original text nodes", () => {

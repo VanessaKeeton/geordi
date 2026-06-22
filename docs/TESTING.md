@@ -38,7 +38,7 @@ After loading the extension in Chrome:
 - [ ] "Read page" skips button labels, form inputs, and nav but keeps article link text
 - [ ] Word + sentence highlight follows TTS and auto-scrolls on long pages
 - [ ] Highlight works on pages with open shadow DOM (e.g. Google News)
-- [ ] Highlight contrast readable on light pages (dark-page contrast is a known follow-up)
+- [ ] Highlight contrast readable on light pages and on dark pages with light text
 - [ ] "Read selection" reads highlighted text with follow-along highlight
 - [ ] Play / pause / stop work; highlight clears on pause/stop
 - [ ] Voice and speed persist after reload

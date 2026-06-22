@@ -1,8 +1,8 @@
 # Agent Handoff
 
 **Last updated:** 2026-06-22  
-**Last agent task:** PR #31 review fixes — Chrome Built-in AI detection alignment  
-**PR:** [#31](https://github.com/VanessaKeeton/geordi/pull/31) (branch `issue-24-ai-provider-foundation`)
+**Last agent task:** #32 — adaptive reader highlight text contrast on dark pages  
+**PR:** branch `issue-32-highlight-contrast`
 
 ## Current state
 
@@ -15,21 +15,21 @@
   - Chrome Built-in AI adapters isolated under `lib/ai/providers/chrome/` (availability probing only; #25/#27 implement operations)
   - Web Speech read-aloud baseline provider in `lib/speech/read-aloud-provider.ts`
   - BYOK cloud summarization placeholder returns `requires_configuration` (#28)
-- Extension version **0.2.1** (`apps/extension/package.json`)
-- 58 unit tests passing
+- Follow-along highlight now adapts text color: `wrap-for-reading.ts` composites the
+  yellow/orange fills over the page background and, via `contrast.ts`, keeps the page's
+  own text color when it passes AA or falls back to black/white when it fails. Colors are
+  set as CSS variables on `documentElement` and removed on clear (no permanent page edits).
+- Extension version **0.2.2** (`apps/extension/package.json`)
+- 69 unit tests passing
 
 ## Completed this session
 
-- [x] WebExtension runtime shim (`lib/browser/runtime.ts`)
-- [x] Provider contracts, availability helpers, and registry
-- [x] Chrome-specific detection/adapters (no feature-level Chrome API imports)
-- [x] Unsupported + BYOK placeholder providers
-- [x] Unit tests for registry, availability, browser shim, read-aloud provider
-- [x] Version bump `0.2.0` → `0.2.1` (internal foundation)
-- [x] Review fix: corrected Chrome detection type import path in `providers/chrome/detect.ts`
-- [x] Review fix: updated Chrome Built-in AI detection to use `globalThis.Summarizer` / `globalThis.LanguageModel`
-- [x] Review fix: added registry tests for current Chrome availability strings and LanguageModel probing
-- [x] Verified `pnpm test:run` and `pnpm build:ext` pass after review fixes
+- [x] Added contrast helpers `blendOver`, `readableTextColor`, `resolveHighlightTextColor`, `rgbToCss` (`lib/content/contrast.ts`)
+- [x] Wired adaptive highlight text color into the active highlight path (`lib/content/wrap-for-reading.ts`)
+- [x] Highlight foreground exposed via CSS variables and cleared with `clearReadingStyles` (no permanent page style changes)
+- [x] Tests for dark-page/light-text, light-page/dark-text, sentence + word contrast, and cleanup
+- [x] Version bump `0.2.1` → `0.2.2` (bug fix)
+- [x] Verified `pnpm test:run` (69 passing) and `pnpm build:ext` pass
 
 ## Next up (priority order)
 
@@ -39,12 +39,10 @@
 4. **#29** — Read-aloud UX (premium voices)
 5. **#28** — BYOK cloud provider
 6. **#30** — Availability/privacy UX
-7. Adaptive highlight contrast (post-#21 follow-up)
-8. Phase 2: Structured navigation (#17)
+7. Phase 2: Structured navigation (#17)
 
 ## Known blockers
 
-- Highlight contrast on dark-background pages
 - Highlight alignment depends on browser `boundary` event support (Chrome)
 - Chrome Built-in AI requires user flags / on-device model download in supported Chrome versions
 - Plain `pnpm --filter @geordi/extension exec tsc --noEmit` still fails on pre-existing project-wide typing gaps (Chrome/jsdom/test globals and older strictness issues); WXT production build passes

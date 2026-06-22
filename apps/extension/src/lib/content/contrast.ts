@@ -19,6 +19,11 @@ const DARK_TEXT_PALETTE = [
 const MIN_CONTRAST = 4.5;
 const TEXT_LUMINANCE_THRESHOLD = 0.5;
 
+export type Rgb = [number, number, number];
+
+const BLACK: Rgb = [0, 0, 0];
+const WHITE: Rgb = [255, 255, 255];
+
 function parseColor(color: string): [number, number, number] | null {
   const trimmed = color.trim().toLowerCase();
   if (trimmed === "transparent") return null;
@@ -100,6 +105,44 @@ export function resolveTextColor(el: Element): [number, number, number] {
   if (!view) return [0, 0, 0];
   const parsed = parseColor(view.getComputedStyle(el).color);
   return parsed ?? [0, 0, 0];
+}
+
+/** Composite a semi-transparent color over an opaque background (alpha 0–1). */
+export function blendOver(foreground: Rgb, background: Rgb, alpha: number): Rgb {
+  const a = Math.min(Math.max(alpha, 0), 1);
+  return [
+    Math.round(foreground[0] * a + background[0] * (1 - a)),
+    Math.round(foreground[1] * a + background[1] * (1 - a)),
+    Math.round(foreground[2] * a + background[2] * (1 - a)),
+  ];
+}
+
+/** Black or white text, whichever has the higher contrast against a background. */
+export function readableTextColor(background: Rgb): Rgb {
+  return contrastRatio(BLACK, background) >= contrastRatio(WHITE, background)
+    ? BLACK
+    : WHITE;
+}
+
+/**
+ * Choose the text color for highlighted reading text. Keep the page's own text
+ * color when it already meets WCAG AA against the highlight background; otherwise
+ * fall back to the most readable of black/white so highlights stay legible on
+ * dark pages with light text.
+ */
+export function resolveHighlightTextColor(
+  pageTextColor: Rgb,
+  highlightBackground: Rgb,
+): Rgb {
+  if (contrastRatio(pageTextColor, highlightBackground) >= MIN_CONTRAST) {
+    return pageTextColor;
+  }
+  return readableTextColor(highlightBackground);
+}
+
+/** Serialize an RGB tuple to a CSS `rgb(...)` string. */
+export function rgbToCss([r, g, b]: Rgb): string {
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 /** Pick a highlight fill color with sufficient contrast against text and page bg. */

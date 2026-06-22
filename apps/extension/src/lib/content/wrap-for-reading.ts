@@ -1,4 +1,12 @@
 import {
+  blendOver,
+  resolveBackgroundColor,
+  resolveHighlightTextColor,
+  resolveTextColor,
+  rgbToCss,
+  type Rgb,
+} from "./contrast";
+import {
   ancestorElements,
   collectTextNodesDeep,
   isHiddenElement,
@@ -29,6 +37,16 @@ export const HIGHLIGHT_STYLE_ID = "geordi-reading-highlight-styles";
 export const HL_SENTENCE_CLASS = "geordi-hl-sentence";
 export const HL_WORD_CLASS = "geordi-hl-word";
 
+export const HL_SENTENCE_FG_VAR = "--geordi-hl-sentence-fg";
+export const HL_WORD_FG_VAR = "--geordi-hl-word-fg";
+
+// Highlight fills as opaque base color + alpha, kept in sync with the stylesheet
+// below so contrast math composites against the real rendered background.
+const SENTENCE_FILL: Rgb = [255, 238, 153];
+const SENTENCE_ALPHA = 0.92;
+const WORD_FILL: Rgb = [255, 140, 0];
+const WORD_ALPHA = 0.95;
+
 export interface WrapOptions {
   skipFormControls: boolean;
   skipBoilerplate: boolean;
@@ -43,18 +61,42 @@ export function ensureHighlightStyles(doc: Document = document): void {
   style.id = HIGHLIGHT_STYLE_ID;
   style.textContent = `
     [${SENTENCE_ATTR}].${HL_SENTENCE_CLASS} {
-      background-color: rgba(255, 238, 153, 0.92) !important;
+      background-color: rgba(255, 238, 153, ${SENTENCE_ALPHA}) !important;
+      color: var(${HL_SENTENCE_FG_VAR}, #1a1a1a) !important;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
     [${WORD_ATTR}].${HL_WORD_CLASS} {
-      background-color: rgba(255, 140, 0, 0.95) !important;
-      color: #000 !important;
+      background-color: rgba(255, 140, 0, ${WORD_ALPHA}) !important;
+      color: var(${HL_WORD_FG_VAR}, #1a1a1a) !important;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
   `;
   doc.documentElement.append(style);
+}
+
+/**
+ * Compute readable highlight text colors from the page's own foreground/background
+ * and expose them as CSS variables on the document root. The fixed yellow/orange
+ * fills stay recognizable; only the text color adapts so highlighted reading text
+ * stays legible on dark pages with light text. Variables are removed on clear, so
+ * the page's own styles are never permanently changed.
+ */
+function applyAdaptiveHighlightColors(sentence: Element, word?: Element): void {
+  const root = sentence.ownerDocument?.documentElement;
+  if (!root) return;
+
+  const pageBackground = resolveBackgroundColor(sentence);
+  const pageText = resolveTextColor(word ?? sentence);
+
+  const sentenceBg = blendOver(SENTENCE_FILL, pageBackground, SENTENCE_ALPHA);
+  const sentenceFg = resolveHighlightTextColor(pageText, sentenceBg);
+  root.style.setProperty(HL_SENTENCE_FG_VAR, rgbToCss(sentenceFg));
+
+  const wordBg = blendOver(WORD_FILL, pageBackground, WORD_ALPHA);
+  const wordFg = resolveHighlightTextColor(pageText, wordBg);
+  root.style.setProperty(HL_WORD_FG_VAR, rgbToCss(wordFg));
 }
 
 function shouldSkipElement(el: Element, options: WrapOptions): boolean {
@@ -170,6 +212,13 @@ export function clearReadingStyles(container: Element | Document): void {
   queryAllDeep(container, `[${WORD_ATTR}]`).forEach((el) => {
     el.classList.remove(HL_WORD_CLASS);
   });
+
+  const root =
+    container instanceof Document
+      ? container.documentElement
+      : container.ownerDocument?.documentElement;
+  root?.style.removeProperty(HL_SENTENCE_FG_VAR);
+  root?.style.removeProperty(HL_WORD_FG_VAR);
 }
 
 /** Highlight word + sentence at a global charIndex (speechify-dry-run pattern). */
@@ -191,6 +240,9 @@ export function highlightAtCharIndex(
       const end = charCount + length;
 
       if (charIndex >= start && charIndex < end) {
+        // Resolve page colors before applying classes so the spans still report
+        // the page's own foreground color rather than our highlight override.
+        applyAdaptiveHighlightColors(sentence, word);
         sentence.classList.add(HL_SENTENCE_CLASS);
         word.classList.add(HL_WORD_CLASS);
         word.scrollIntoView?.({ block: "center", behavior: "smooth" });
@@ -204,6 +256,7 @@ export function highlightAtCharIndex(
       const spaceStart = charCount;
       const spaceEnd = charCount + 1;
       if (charIndex >= spaceStart && charIndex < spaceEnd) {
+        applyAdaptiveHighlightColors(sentence);
         sentence.classList.add(HL_SENTENCE_CLASS);
         return true;
       }
