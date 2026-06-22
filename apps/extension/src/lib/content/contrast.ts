@@ -133,3 +133,16 @@ export function pickHighlightColor(
 
   return best;
 }
+
+/** Pick black or white text for the chosen highlight fill. */
+export function pickHighlightTextColor(highlightColor: string): string {
+  const fill = parseColor(highlightColor);
+  if (!fill) return "#000000";
+
+  const darkText: [number, number, number] = [0, 0, 0];
+  const lightText: [number, number, number] = [255, 255, 255];
+
+  return contrastRatio(darkText, fill) >= contrastRatio(lightText, fill)
+    ? "#000000"
+    : "#ffffff";
+}

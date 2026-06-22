@@ -1,5 +1,6 @@
 import {
   pickHighlightColor,
+  pickHighlightTextColor,
   resolveBackgroundColor,
   resolveTextColor,
 } from "./contrast";
@@ -25,11 +26,11 @@ function ensureStyles(doc: Document): void {
   style.textContent = `
     ::highlight(${HIGHLIGHT_NAME}) {
       background-color: var(--geordi-hl, #ffe082);
-      color: inherit;
+      color: var(--geordi-hl-fg, #111111);
     }
     mark.geordi-reading-mark {
       background-color: var(--geordi-hl, #ffe082);
-      color: inherit;
+      color: var(--geordi-hl-fg, #111111);
     }
   `;
   doc.head.append(style);
@@ -64,6 +65,10 @@ function applyAdaptiveColor(doc: Document, range: Range): void {
   lastColorKey = colorKey;
   const highlight = pickHighlightColor(textColor, bgColor);
   doc.documentElement.style.setProperty("--geordi-hl", highlight);
+  doc.documentElement.style.setProperty(
+    "--geordi-hl-fg",
+    pickHighlightTextColor(highlight),
+  );
 }
 
 function scrollRangeIntoView(range: Range): void {
@@ -154,4 +159,5 @@ export function clearHighlight(doc: Document = document): void {
   clearFallbackMarks();
   lastColorKey = "";
   doc.documentElement.style.removeProperty("--geordi-hl");
+  doc.documentElement.style.removeProperty("--geordi-hl-fg");
 }

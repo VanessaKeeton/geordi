@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { contrastRatio, pickHighlightColor } from "./contrast";
+import {
+  contrastRatio,
+  pickHighlightColor,
+  pickHighlightTextColor,
+} from "./contrast";
 
 describe("contrastRatio", () => {
   it("returns 21:1 for black on white", () => {
@@ -22,6 +26,17 @@ describe("pickHighlightColor", () => {
     const color = pickHighlightColor([240, 240, 240], [26, 26, 26]);
     expect(color).toMatch(/^#[0-9a-f]{6}$/i);
     expect(contrastRatio([240, 240, 240], hexToRgb(color))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("pickHighlightTextColor", () => {
+  it("picks dark text for yellow/orange highlight fills", () => {
+    expect(pickHighlightTextColor("#ffe082")).toBe("#000000");
+    expect(pickHighlightTextColor("#ffcc80")).toBe("#000000");
+  });
+
+  it("picks light text for dark highlight fills", () => {
+    expect(pickHighlightTextColor("#1565c0")).toBe("#ffffff");
   });
 });
 
