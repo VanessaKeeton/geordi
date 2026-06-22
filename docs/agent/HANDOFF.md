@@ -1,7 +1,7 @@
 # Agent Handoff
 
-**Last updated:** 2026-06-21  
-**Last agent task:** #24 — Cross-browser AI provider foundation  
+**Last updated:** 2026-06-22  
+**Last agent task:** PR #31 review fixes — Chrome Built-in AI detection alignment  
 **PR:** [#31](https://github.com/VanessaKeeton/geordi/pull/31) (branch `issue-24-ai-provider-foundation`)
 
 ## Current state
@@ -16,7 +16,7 @@
   - Web Speech read-aloud baseline provider in `lib/speech/read-aloud-provider.ts`
   - BYOK cloud summarization placeholder returns `requires_configuration` (#28)
 - Extension version **0.2.1** (`apps/extension/package.json`)
-- 56 unit tests passing
+- 58 unit tests passing
 
 ## Completed this session
 
@@ -26,6 +26,10 @@
 - [x] Unsupported + BYOK placeholder providers
 - [x] Unit tests for registry, availability, browser shim, read-aloud provider
 - [x] Version bump `0.2.0` → `0.2.1` (internal foundation)
+- [x] Review fix: corrected Chrome detection type import path in `providers/chrome/detect.ts`
+- [x] Review fix: updated Chrome Built-in AI detection to use `globalThis.Summarizer` / `globalThis.LanguageModel`
+- [x] Review fix: added registry tests for current Chrome availability strings and LanguageModel probing
+- [x] Verified `pnpm test:run` and `pnpm build:ext` pass after review fixes
 
 ## Next up (priority order)
 
@@ -43,6 +47,7 @@
 - Highlight contrast on dark-background pages
 - Highlight alignment depends on browser `boundary` event support (Chrome)
 - Chrome Built-in AI requires user flags / on-device model download in supported Chrome versions
+- Plain `pnpm --filter @geordi/extension exec tsc --noEmit` still fails on pre-existing project-wide typing gaps (Chrome/jsdom/test globals and older strictness issues); WXT production build passes
 
 ## Do not touch
 

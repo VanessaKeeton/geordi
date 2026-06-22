@@ -6,7 +6,7 @@ import type {
   ProviderResult,
 } from "../../types";
 import {
-  getChromeAiNamespace,
+  getChromeAiGlobals,
   mapChromeAvailability,
 } from "./detect";
 
@@ -18,8 +18,7 @@ export class ChromeImageDescriptionProvider implements ImageDescriptionProvider 
   readonly id = "chrome-multimodal";
 
   async checkAvailability(): Promise<ProviderAvailability> {
-    const ai = getChromeAiNamespace();
-    const languageModel = ai?.LanguageModel;
+    const { LanguageModel: languageModel } = getChromeAiGlobals();
     if (!languageModel?.availability) {
       return availability(
         this.id,

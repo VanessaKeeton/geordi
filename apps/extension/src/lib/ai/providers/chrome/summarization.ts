@@ -2,7 +2,7 @@ import { availability } from "../../availability";
 import type { SummarizationProvider } from "../../contracts";
 import type { ProviderAvailability, ProviderResult } from "../../types";
 import {
-  getChromeAiNamespace,
+  getChromeAiGlobals,
   mapChromeAvailability,
 } from "./detect";
 
@@ -14,8 +14,7 @@ export class ChromeSummarizationProvider implements SummarizationProvider {
   readonly id = "chrome-summarizer";
 
   async checkAvailability(): Promise<ProviderAvailability> {
-    const ai = getChromeAiNamespace();
-    const summarizer = ai?.Summarizer;
+    const { Summarizer: summarizer } = getChromeAiGlobals();
     if (!summarizer?.availability) {
       return availability(
         this.id,

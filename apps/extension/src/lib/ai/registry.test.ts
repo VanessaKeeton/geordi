@@ -1,11 +1,12 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createProviderRegistry } from "./create-registry";
 import { mapChromeAvailability } from "./providers/chrome/detect";
-import type { ChromeAiNamespace } from "./providers/chrome/detect";
+import type { ChromeAiGlobals } from "./providers/chrome/detect";
 
 describe("createProviderRegistry", () => {
   afterEach(() => {
-    delete (globalThis as { ai?: ChromeAiNamespace }).ai;
+    delete (globalThis as ChromeAiGlobals).Summarizer;
+    delete (globalThis as ChromeAiGlobals).LanguageModel;
   });
 
   it("registers web speech read-aloud on all browsers", async () => {
@@ -35,9 +36,21 @@ describe("createProviderRegistry", () => {
     );
   });
 
-  it("maps Chrome readily to available", () => {
-    const mapped = mapChromeAvailability("chrome-summarizer", "readily");
+  it("maps Chrome available to available", () => {
+    const mapped = mapChromeAvailability("chrome-summarizer", "available");
     expect(mapped.state).toBe("available");
+  });
+
+  it("maps older Chrome preview availability strings", () => {
+    expect(mapChromeAvailability("chrome-summarizer", "readily").state).toBe(
+      "available",
+    );
+    expect(
+      mapChromeAvailability("chrome-summarizer", "after-download").state,
+    ).toBe("downloadable");
+    expect(mapChromeAvailability("chrome-summarizer", "no").state).toBe(
+      "unsupported",
+    );
   });
 
   it("returns structured failure from unsupported summarization", async () => {
@@ -53,10 +66,8 @@ describe("createProviderRegistry", () => {
   });
 
   it("probes Chrome summarizer availability without throwing", async () => {
-    (globalThis as { ai?: ChromeAiNamespace }).ai = {
-      Summarizer: {
-        availability: async () => "readily",
-      },
+    (globalThis as ChromeAiGlobals).Summarizer = {
+      availability: async () => "available",
     };
 
     const registry = createProviderRegistry({ browser: "chrome" });
@@ -74,10 +85,8 @@ describe("createProviderRegistry", () => {
   });
 
   it("returns downloadable message when Chrome model is not local yet", async () => {
-    (globalThis as { ai?: ChromeAiNamespace }).ai = {
-      Summarizer: {
-        availability: async () => "after-download",
-      },
+    (globalThis as ChromeAiGlobals).Summarizer = {
+      availability: async () => "downloadable",
     };
 
     const registry = createProviderRegistry({ browser: "chrome" });
@@ -87,5 +96,18 @@ describe("createProviderRegistry", () => {
     if (!result.ok) {
       expect(result.availability.state).toBe("downloadable");
     }
+  });
+
+  it("probes Chrome LanguageModel for image description availability", async () => {
+    (globalThis as ChromeAiGlobals).LanguageModel = {
+      availability: async () => "available",
+    };
+
+    const registry = createProviderRegistry({ browser: "chrome" });
+    const provider = await registry.getImageDescriptionProvider();
+    expect(provider?.id).toBe("chrome-multimodal");
+
+    const availability = await provider!.checkAvailability();
+    expect(availability.state).toBe("available");
   });
 });
