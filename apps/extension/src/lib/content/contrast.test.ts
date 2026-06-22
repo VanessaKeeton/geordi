@@ -31,8 +31,8 @@ describe("pickHighlightColor", () => {
 
 describe("pickHighlightTextColor", () => {
   it("picks dark text for yellow/orange highlight fills", () => {
-    expect(pickHighlightTextColor("#ffe082")).toBe("#111111");
-    expect(pickHighlightTextColor("#ffcc80")).toBe("#111111");
+    expect(pickHighlightTextColor("#ffe082")).toBe("#000000");
+    expect(pickHighlightTextColor("#ffcc80")).toBe("#000000");
   });
 
   it("picks light text for dark highlight fills", () => {
