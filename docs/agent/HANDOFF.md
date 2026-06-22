@@ -1,42 +1,53 @@
 # Agent Handoff
 
-**Last updated:** 2026-06-21  
-**Last agent task:** #21 — Skip form controls in page read + follow-along highlighting  
-**PR:** [#22](https://github.com/VanessaKeeton/geordi/pull/22) (branch `issue-21-reading-highlight`)
+**Last updated:** 2026-06-22  
+**Last agent task:** PR #31 review fixes — Chrome Built-in AI detection alignment  
+**PR:** [#31](https://github.com/VanessaKeeton/geordi/pull/31) (branch `issue-24-ai-provider-foundation`)
 
 ## Current state
 
 - WXT extension with side panel reading UI
 - Read page skips buttons/form inputs and nav/boilerplate; keeps link text in articles
-- Follow-along highlighting uses the [speechify-dry-run](https://github.com/VanessaKeeton/speechify-dry-run) pattern:
-  - Content script wraps readable text in word/sentence spans (`wrap-for-reading.ts`)
-  - Side panel speaks **one full utterance** via `SpeechReader.speakText()`
-  - `boundary` `charIndex` maps to spans in the same page DOM
-- Open shadow DOM supported via `deep-dom.ts`; highlight messages pinned to reading tab in background
-- Pause/resume in continuous mode uses `speechSynthesis.pause()` / `resume()`
-- Extension version **0.2.0** (`apps/extension/package.json`)
-- 43 unit tests passing; manual testing confirmed on article pages and Google News
+- Follow-along highlighting uses the [speechify-dry-run](https://github.com/VanessaKeeton/speechify-dry-run) pattern
+- Cross-browser AI provider foundation in `lib/ai/` + `lib/browser/`:
+  - `ProviderRegistry` with summarization, image description, and read-aloud slots
+  - Structured `ProviderAvailability` states (available, downloadable, downloading, unsupported, requires_configuration)
+  - Chrome Built-in AI adapters isolated under `lib/ai/providers/chrome/` (availability probing only; #25/#27 implement operations)
+  - Web Speech read-aloud baseline provider in `lib/speech/read-aloud-provider.ts`
+  - BYOK cloud summarization placeholder returns `requires_configuration` (#28)
+- Extension version **0.2.1** (`apps/extension/package.json`)
+- 58 unit tests passing
 
 ## Completed this session
 
-- [x] Skip buttons, form inputs, and nav/boilerplate during Read page
-- [x] `wrap-for-reading.ts` + `prepare-reading.ts` — DOM span wrapping + charIndex highlight walk
-- [x] Messaging: `PAGE_READING.text`, `HIGHLIGHT_AT_CHAR`, `CLEAR_HIGHLIGHT`, `TEARDOWN_READING`
-- [x] `SpeechReader.speakText()` single-utterance mode
-- [x] PR #22 opened; user-verified working on real pages
-- [x] Extension version bumped `0.1.0` → `0.2.0`; versioning rule added to agent docs
+- [x] WebExtension runtime shim (`lib/browser/runtime.ts`)
+- [x] Provider contracts, availability helpers, and registry
+- [x] Chrome-specific detection/adapters (no feature-level Chrome API imports)
+- [x] Unsupported + BYOK placeholder providers
+- [x] Unit tests for registry, availability, browser shim, read-aloud provider
+- [x] Version bump `0.2.0` → `0.2.1` (internal foundation)
+- [x] Review fix: corrected Chrome detection type import path in `providers/chrome/detect.ts`
+- [x] Review fix: updated Chrome Built-in AI detection to use `globalThis.Summarizer` / `globalThis.LanguageModel`
+- [x] Review fix: added registry tests for current Chrome availability strings and LanguageModel probing
+- [x] Verified `pnpm test:run` and `pnpm build:ext` pass after review fixes
 
 ## Next up (priority order)
 
-1. Merge PR #22 after review
-2. **Adaptive highlight contrast** — fixed yellow/orange highlights are unreadable on dark pages (white-on-yellow); `contrast.ts` exists but is not wired into `wrap-for-reading.ts` yet
-3. Phase 2: Structured navigation (#17) — heading list, link list
-4. Phase 3: AI features stub → BYOK (#18)
+1. **#25** — Chrome summarizer provider (`ChromeSummarizationProvider.summarize()`)
+2. **#26** — Content extraction changes for AI features
+3. **#27** — Rich image description pipeline
+4. **#29** — Read-aloud UX (premium voices)
+5. **#28** — BYOK cloud provider
+6. **#30** — Availability/privacy UX
+7. Adaptive highlight contrast (post-#21 follow-up)
+8. Phase 2: Structured navigation (#17)
 
 ## Known blockers
 
-- Highlight contrast on dark-background pages (tracked as follow-up, not a #21 blocker)
+- Highlight contrast on dark-background pages
 - Highlight alignment depends on browser `boundary` event support (Chrome)
+- Chrome Built-in AI requires user flags / on-device model download in supported Chrome versions
+- Plain `pnpm --filter @geordi/extension exec tsc --noEmit` still fails on pre-existing project-wide typing gaps (Chrome/jsdom/test globals and older strictness issues); WXT production build passes
 
 ## Do not touch
 

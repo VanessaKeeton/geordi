@@ -1,20 +1,40 @@
-/** Stub for future BYOK / paid AI features. Core reading requires no network. */
-export interface PageContext {
-  title: string;
-  text: string;
-  url: string;
-}
+import type { NavAction, PageContext } from "./types";
 
-export interface NavAction {
-  selector: string;
-  description: string;
-}
+export type {
+  ImageDescriptionProvider,
+  ReadAloudProvider,
+  SummarizationProvider,
+} from "./contracts";
 
+export type {
+  AICapability,
+  ImageDescriptionInput,
+  NavAction,
+  PageContext,
+  ProviderAvailability,
+  ProviderAvailabilityState,
+  ProviderResult,
+} from "./types";
+
+export {
+  availability,
+  isUsable,
+  pickBestAvailability,
+  requiresConfiguration,
+  unsupported,
+} from "./availability";
+
+export { ProviderRegistry } from "./registry";
+export { createProviderRegistry } from "./create-registry";
+export type { CreateProviderRegistryOptions } from "./create-registry";
+
+/** @deprecated Legacy Phase 3 stub — use SummarizationProvider + ProviderRegistry. */
 export interface AIProvider {
   summarize(text: string): Promise<string>;
   navigate(instruction: string, pageContext: PageContext): Promise<NavAction>;
 }
 
+/** @deprecated Use createProviderRegistry() and structured ProviderResult instead. */
 export class UnconfiguredAIProvider implements AIProvider {
   async summarize(): Promise<string> {
     throw new Error("AI features require an API key. Coming in Phase 3.");

@@ -43,7 +43,9 @@ flowchart LR
 | Contrast | `lib/content/contrast.ts` | WCAG contrast helpers (not yet wired to live highlights) |
 | Speech reader | `lib/speech/reader.ts` | Web Speech API, `speakText()` + `speakSentences()` |
 | Messages | `lib/messages.ts` | Typed message contracts between contexts |
-| AI provider | `lib/ai/provider.ts` | Stub for Phase 3 BYOK/paid features |
+| AI providers | `lib/ai/` | Cross-browser provider registry, contracts, Chrome adapters (#24) |
+| Browser shim | `lib/browser/` | `chrome.*` / `browser.*` runtime access |
+| Read-aloud provider | `lib/speech/read-aloud-provider.ts` | Web Speech baseline provider |
 
 ## Message flow: Read page
 
