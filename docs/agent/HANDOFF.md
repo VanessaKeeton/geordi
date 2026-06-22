@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-21  
 **Last agent task:** #24 — Cross-browser AI provider foundation  
-**PR:** (pending) — branch `issue-24-ai-provider-foundation`
+**PR:** [#31](https://github.com/VanessaKeeton/geordi/pull/31) (branch `issue-24-ai-provider-foundation`)
 
 ## Current state
 
