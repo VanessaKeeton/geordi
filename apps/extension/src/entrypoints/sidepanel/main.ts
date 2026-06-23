@@ -33,6 +33,17 @@ function teardownReading() {
   sendToActiveTab({ type: "TEARDOWN_READING" });
 }
 
+function resetReaderOnNavigation() {
+  const wasReading = reader.isActive() || reader.isPaused();
+  reader.stop(false);
+  pendingText = "";
+  if (wasReading) {
+    clearHighlight();
+    teardownReading();
+  }
+  setStatus("Page changed.");
+}
+
 async function loadPageReading(): Promise<string> {
   setStatus("Extracting page content…");
   const response = await requestFromActiveTab({ type: "GET_PAGE_READING" });
@@ -93,6 +104,13 @@ async function initSettings() {
   speedValue.textContent = `${settings.rate.toFixed(1)}×`;
   populateVoices();
 }
+
+chrome.runtime.onMessage.addListener((message: GeordiMessage) => {
+  if (message.type === "RESET_READING") {
+    resetReaderOnNavigation();
+  }
+  return false;
+});
 
 reader.on((event) => {
   switch (event.type) {

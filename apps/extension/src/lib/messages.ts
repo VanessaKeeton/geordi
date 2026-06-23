@@ -16,6 +16,7 @@ export type GeordiMessage =
   | { type: "HIGHLIGHT_AT_CHAR"; charIndex: number }
   | { type: "CLEAR_HIGHLIGHT" }
   | { type: "TEARDOWN_READING" }
+  | { type: "RESET_READING" }
   | { type: "ERROR"; message: string };
 
 /** Messages that require a response from the content script. */
