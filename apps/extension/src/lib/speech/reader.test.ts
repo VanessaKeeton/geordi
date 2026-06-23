@@ -285,6 +285,37 @@ describe("SpeechReader", () => {
     expect(mockSynth.paused).toBe(false);
   });
 
+  it("updateSettings in continuous mode resumes from the current boundary", async () => {
+    mockSynth.getVoices = () => [
+      { voiceURI: "voice-b", name: "B", lang: "en-US" } as SpeechSynthesisVoice,
+    ];
+    const spoken: string[] = [];
+    const words: number[] = [];
+    mockSynth.speak = function (utterance: MockUtterance) {
+      this.speaking = true;
+      spoken.push(utterance.text);
+      this._queue.push(utterance);
+    };
+
+    const reader = new SpeechReader();
+    reader.on((event) => {
+      if (event.type === "word") {
+        words.push(event.charIndex);
+      }
+    });
+
+    await reader.speakText("Alpha beta gamma.");
+    mockSynth._queue.at(-1)?.dispatchBoundary("word", 6, 4);
+
+    await reader.updateSettings({ voiceURI: "voice-b" });
+
+    expect(spoken).toEqual(["Alpha beta gamma.", "beta gamma."]);
+    expect(mockSynth._queue.at(-1)?.voice?.voiceURI).toBe("voice-b");
+
+    mockSynth._queue.at(-1)?.dispatchBoundary("word", 5, 5);
+    expect(words).toEqual([6, 11]);
+  });
+
   it("speakSentences uses pre-split queue without re-splitting", async () => {
     const spoken: string[] = [];
     mockSynth.speak = function (utterance: MockUtterance) {
