@@ -16,6 +16,14 @@ const REQUEST_MESSAGES = new Set<GeordiTabMessage["type"]>([
 /** Tab that initiated the current reading session (highlights must target this tab). */
 let readingTabId: number | null = null;
 
+function resetReadingOnTabNavigation(tabId: number): void {
+  if (readingTabId === null || tabId !== readingTabId) return;
+  readingTabId = null;
+  chrome.runtime.sendMessage({ type: "RESET_READING" }).catch(() => {
+    // Side panel may be closed; speech stops when the panel unloads.
+  });
+}
+
 async function getActiveTabId(): Promise<number | undefined> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab?.id;
@@ -29,6 +37,12 @@ export default defineBackground(() => {
   chrome.commands.onCommand.addListener(async (command, tab) => {
     if (command !== "open-side-panel" || !tab?.windowId) return;
     await chrome.sidePanel.open({ windowId: tab.windowId });
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === "loading" || changeInfo.url) {
+      resetReadingOnTabNavigation(tabId);
+    }
   });
 
   chrome.runtime.onMessage.addListener(
