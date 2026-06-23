@@ -7,7 +7,11 @@ const speedRange = document.getElementById("speed-range") as HTMLInputElement;
 const speedValue = document.getElementById("speed-value")!;
 
 const reader = createSpeechReader();
+type ReadingSource = "page" | "selection";
+
 let pendingText = "";
+let pendingSource: ReadingSource | null = null;
+let readingStartToken = 0;
 
 function setStatus(message: string) {
   statusEl.textContent = message;
@@ -35,13 +39,28 @@ function teardownReading() {
 
 function resetReaderOnNavigation() {
   const wasReading = reader.isActive() || reader.isPaused();
+  readingStartToken += 1;
   reader.stop(false);
   pendingText = "";
+  pendingSource = null;
   if (wasReading) {
     clearHighlight();
     teardownReading();
   }
   setStatus("Page changed.");
+}
+
+async function startReading(source: ReadingSource): Promise<void> {
+  const token = ++readingStartToken;
+  const text = source === "page"
+    ? await loadPageReading()
+    : await loadSelectionReading();
+
+  if (token !== readingStartToken) return;
+
+  pendingText = text;
+  pendingSource = source;
+  await reader.speakText(pendingText);
 }
 
 async function loadPageReading(): Promise<string> {
@@ -140,8 +159,7 @@ reader.on((event) => {
 
 document.getElementById("read-page")!.addEventListener("click", async () => {
   try {
-    pendingText = await loadPageReading();
-    await reader.speakText(pendingText);
+    await startReading("page");
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to read page");
   }
@@ -149,8 +167,7 @@ document.getElementById("read-page")!.addEventListener("click", async () => {
 
 document.getElementById("read-selection")!.addEventListener("click", async () => {
   try {
-    pendingText = await loadSelectionReading();
-    await reader.speakText(pendingText);
+    await startReading("selection");
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to read selection");
   }
@@ -166,10 +183,10 @@ document.getElementById("play")!.addEventListener("click", async () => {
     return;
   }
 
-  if (pendingText.trim()) {
-    await reader.speakText(pendingText);
-  } else {
-    setStatus("Use Read page or Read selection first.");
+  try {
+    await startReading(pendingSource ?? "page");
+  } catch (err) {
+    setStatus(err instanceof Error ? err.message : "Failed to start reading");
   }
 });
 
@@ -178,6 +195,7 @@ document.getElementById("pause")!.addEventListener("click", () => {
 });
 
 document.getElementById("stop")!.addEventListener("click", () => {
+  readingStartToken += 1;
   reader.stop();
   clearHighlight();
   teardownReading();
