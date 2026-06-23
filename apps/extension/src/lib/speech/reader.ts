@@ -18,6 +18,8 @@ export class SpeechReader {
   private active = false;
   private continuousMode = false;
   private continuousText = "";
+  private continuousStartOffset = 0;
+  private continuousCharIndex = 0;
   private utteranceGeneration = 0;
   private settings: SpeechSettings = { ...DEFAULT_SPEECH_SETTINGS };
   private listeners = new Set<SpeechListener>();
@@ -72,6 +74,7 @@ export class SpeechReader {
 
     if (this.continuousMode) {
       const wasPaused = this.paused;
+      this.continuousStartOffset = this.continuousCharIndex;
       this.cancelCurrentUtterance();
       if (wasPaused) {
         this.paused = true;
@@ -124,6 +127,8 @@ export class SpeechReader {
     this.stop(false);
     this.continuousMode = true;
     this.continuousText = text.trim();
+    this.continuousStartOffset = 0;
+    this.continuousCharIndex = 0;
     this.paused = false;
     this.stopped = false;
 
@@ -193,6 +198,8 @@ export class SpeechReader {
     this.paused = false;
     this.continuousMode = false;
     this.continuousText = "";
+    this.continuousStartOffset = 0;
+    this.continuousCharIndex = 0;
     this.cancelCurrentUtterance();
     this.queue = [];
     this.index = 0;
@@ -218,7 +225,19 @@ export class SpeechReader {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(this.continuousText);
+    this.continuousStartOffset = Math.max(
+      0,
+      Math.min(this.continuousStartOffset, this.continuousText.length),
+    );
+    const text = this.continuousText.slice(this.continuousStartOffset);
+    if (!text) {
+      this.active = false;
+      this.continuousMode = false;
+      this.emit({ type: "end" });
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = this.settings.rate;
 
     const voices = this.getVoices();
@@ -238,9 +257,11 @@ export class SpeechReader {
       const isSentence = name.includes("sentence");
       if (!isWord && !isSentence) return;
 
+      const charIndex = this.continuousStartOffset + event.charIndex;
+      this.continuousCharIndex = charIndex;
       this.emit({
         type: "word",
-        charIndex: event.charIndex,
+        charIndex,
       });
     });
 
