@@ -27,6 +27,9 @@ export interface PageContext {
   url: string;
 }
 
+/** @see {@link ../content/page-content.ts PageContent} for the full extraction contract. */
+export type { PageContent } from "../content/page-content";
+
 /** Future plain-English navigation action (#28+). */
 export interface NavAction {
   selector: string;

@@ -3,7 +3,9 @@ import { JSDOM } from "jsdom";
 import {
   extractPageText,
   extractPageReading,
+  extractPageContent,
   extractSelectionReading,
+  extractSelectionContent,
   extractSelectionText,
   splitIntoParagraphs,
   splitIntoSentences,
@@ -112,6 +114,81 @@ describe("extractPageText", () => {
     `);
     const text = extractPageText(doc);
     expect(text).toContain("more details");
+  });
+});
+
+describe("extractPageContent", () => {
+  it("returns structured content with metadata and headings", () => {
+    const doc = dom(`
+      <html lang="en">
+        <head>
+          <title>Sample Article</title>
+          <meta name="description" content="An example article." />
+        </head>
+        <body>
+          <nav>Skip navigation</nav>
+          <main>
+            <h1>Main headline</h1>
+            <p>Article body with a <a href="/details">details link</a>.</p>
+            <ul><li>First item</li><li>Second item</li></ul>
+          </main>
+        </body>
+      </html>
+    `);
+
+    const content = extractPageContent(doc);
+    expect(content.status).toBe("ok");
+    expect(content.title).toBe("Sample Article");
+    expect(content.url).toBe("https://example.com/");
+    expect(content.text).toContain("Main headline");
+    expect(content.text).toContain("details link");
+    expect(content.text).toContain("First item");
+    expect(content.text).not.toContain("Skip navigation");
+    expect(content.metadata.description).toBe("An example article.");
+    expect(content.metadata.lang).toBe("en");
+    expect(content.structure.headings).toEqual([
+      { level: 1, text: "Main headline" },
+    ]);
+    expect(content.structure.links).toEqual([
+      { text: "details link", href: "/details" },
+    ]);
+  });
+
+  it("reports empty pages with a clear message", () => {
+    const doc = dom(`
+      <body>
+        <main><button>Subscribe</button></main>
+      </body>
+    `);
+
+    const content = extractPageContent(doc);
+    expect(content.status).toBe("empty");
+    expect(content.text).toBe("");
+    expect(content.message).toContain("No readable content");
+  });
+});
+
+describe("extractSelectionContent", () => {
+  it("returns selected text with selection source", () => {
+    const doc = dom(`<body><p>Hello world. Goodbye world.</p></body>`);
+    const p = doc.querySelector("p")!;
+    const range = doc.createRange();
+    range.setStart(p.firstChild!, 0);
+    range.setEnd(p.firstChild!, 12);
+    doc.getSelection()?.removeAllRanges();
+    doc.getSelection()?.addRange(range);
+
+    const content = extractSelectionContent(doc);
+    expect(content.source).toBe("selection");
+    expect(content.status).toBe("ok");
+    expect(content.text).toBe("Hello world.");
+  });
+
+  it("reports empty selection clearly", () => {
+    const doc = dom(`<body><p>Hello</p></body>`);
+    const content = extractSelectionContent(doc);
+    expect(content.status).toBe("empty");
+    expect(content.message).toContain("No text selected");
   });
 });
 
