@@ -1,28 +1,25 @@
 # Agent Handoff
 
 **Last updated:** 2026-06-23  
-**Last agent task:** Issue #39 — preserve reading position when changing voice  
-**Branch:** `issue-39-preserve-voice-position`
+**Last agent task:** Issue #41 — TNG engineering branding  
+**Branch:** `issue-41-tng-branding`
 
 ## Current state
 
-- WXT extension with side panel reading UI
+- WXT extension with TNG Operations / Engineering branded side panel
+- VISOR-inspired extension icon and header logo mark
+- WCAG AAA contrast tokens for dark and light color schemes
 - Reader stops and resets when the reading tab refreshes or navigates away
-- Play now prepares page/selection reading through the same content-script wrapping path as Read page/Read selection before starting speech
-- Changing voice during reading resumes from the current speech boundary instead of restarting from the beginning
-- Read page skips buttons/form inputs and nav/boilerplate; keeps link text in articles
-- Follow-along highlighting uses the [speechify-dry-run](https://github.com/VanessaKeeton/speechify-dry-run) pattern
-- Cross-browser AI provider foundation in `lib/ai/` + `lib/browser/`
-- Extension version **0.2.5** (`apps/extension/package.json`)
+- Changing voice during reading resumes from the current speech boundary
+- Extension version **0.2.6** (`apps/extension/package.json`)
 - 61 unit tests passing
 
 ## Completed this session
 
-- [x] Created GitHub issue #39 before starting the fix
-- [x] Track continuous speech boundary offset for voice/rate restarts
-- [x] Voice changes rebuild the utterance from the current boundary instead of the beginning
-- [x] Added regression coverage for continuous-mode voice change position
-- [x] Version bump `0.2.4` → `0.2.5` (bug fix)
+- [x] Created GitHub issue #41 and `idea` / `design` labels for side-quest work
+- [x] VISOR logo for toolbar icon and side panel header
+- [x] TNG black-and-gold theme with AAA contrast and distinct button hover
+- [x] Version bump `0.2.5` → `0.2.6` (UX improvement)
 - [x] Verified `pnpm test:run` and `pnpm build:ext` pass
 
 ## Next up (priority order)

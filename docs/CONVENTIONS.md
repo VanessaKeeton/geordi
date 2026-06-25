@@ -30,6 +30,16 @@
 - One issue per PR
 - Commit messages: imperative mood, reference issue number
 
+## GitHub labels
+
+| Label | Use for |
+|---|---|
+| `idea` | Exploratory side quests, spikes, and “what if we tried…” work |
+| `design` | Branding, visual design, and UI polish |
+| `enhancement` | Shipped improvements and planned features |
+| `bug` | Something broken |
+| `chore` | Tooling, refactors, repo setup |
+
 ## Versioning
 
 The extension version lives in `apps/extension/package.json`. WXT copies it to `manifest.version` on build.
