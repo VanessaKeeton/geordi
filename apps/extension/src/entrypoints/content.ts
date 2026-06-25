@@ -5,6 +5,10 @@ import {
   prepareSelectionReading,
 } from "../lib/content/prepare-reading";
 import {
+  extractPageContent,
+  extractSelectionContent,
+} from "../lib/content/extract";
+import {
   clearReadingStyles,
   highlightAtCharIndex,
 } from "../lib/content/wrap-for-reading";
@@ -36,6 +40,22 @@ export default defineContentScript({
             sendResponse({
               type: "SELECTION_READING",
               text: reading.text,
+            });
+            return true;
+          }
+
+          if (message.type === "GET_PAGE_CONTENT") {
+            sendResponse({
+              type: "PAGE_CONTENT",
+              content: extractPageContent(),
+            });
+            return true;
+          }
+
+          if (message.type === "GET_SELECTION_CONTENT") {
+            sendResponse({
+              type: "SELECTION_CONTENT",
+              content: extractSelectionContent(),
             });
             return true;
           }

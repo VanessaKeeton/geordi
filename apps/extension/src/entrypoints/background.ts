@@ -3,6 +3,8 @@ import type { GeordiMessage, GeordiTabMessage } from "../lib/messages";
 const TAB_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_PAGE_READING",
   "GET_SELECTION_READING",
+  "GET_PAGE_CONTENT",
+  "GET_SELECTION_CONTENT",
   "HIGHLIGHT_AT_CHAR",
   "CLEAR_HIGHLIGHT",
   "TEARDOWN_READING",
@@ -11,10 +13,22 @@ const TAB_MESSAGES = new Set<GeordiTabMessage["type"]>([
 const REQUEST_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_PAGE_READING",
   "GET_SELECTION_READING",
+  "GET_PAGE_CONTENT",
+  "GET_SELECTION_CONTENT",
 ]);
 
 /** Tab that initiated the current reading session (highlights must target this tab). */
 let readingTabId: number | null = null;
+
+/** Last tab the user focused in a normal browser window (side panel / devtools fallback). */
+let lastFocusedTabId: number | null = null;
+
+function rememberFocusedTab(tabId: number, url?: string): void {
+  if (url?.startsWith("chrome://") || url?.startsWith("chrome-extension://")) {
+    return;
+  }
+  lastFocusedTabId = tabId;
+}
 
 function resetReadingOnTabNavigation(tabId: number): void {
   if (readingTabId === null || tabId !== readingTabId) return;
@@ -25,8 +39,19 @@ function resetReadingOnTabNavigation(tabId: number): void {
 }
 
 async function getActiveTabId(): Promise<number | undefined> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab?.id;
+  const [current] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (current?.id !== undefined) return current.id;
+
+  const [lastFocused] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+  if (lastFocused?.id !== undefined) return lastFocused.id;
+
+  return lastFocusedTabId ?? readingTabId ?? undefined;
 }
 
 export default defineBackground(() => {
@@ -36,10 +61,18 @@ export default defineBackground(() => {
 
   chrome.commands.onCommand.addListener(async (command, tab) => {
     if (command !== "open-side-panel" || !tab?.windowId) return;
+    if (tab.id !== undefined) rememberFocusedTab(tab.id, tab.url);
     await chrome.sidePanel.open({ windowId: tab.windowId });
   });
 
-  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  chrome.tabs.onActivated.addListener(({ tabId }) => {
+    void chrome.tabs.get(tabId).then((tab) => {
+      rememberFocusedTab(tabId, tab.url);
+    });
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (tab.active) rememberFocusedTab(tabId, tab.url ?? changeInfo.url);
     if (changeInfo.status === "loading" || changeInfo.url) {
       resetReadingOnTabNavigation(tabId);
     }

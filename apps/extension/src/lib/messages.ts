@@ -1,5 +1,7 @@
 /** Message types passed between extension contexts. */
 
+import type { PageContent } from "./content/page-content";
+
 export type SpeechEvent =
   | { type: "start" }
   | { type: "pause" }
@@ -11,8 +13,12 @@ export type SpeechEvent =
 export type GeordiMessage =
   | { type: "GET_PAGE_READING" }
   | { type: "GET_SELECTION_READING" }
+  | { type: "GET_PAGE_CONTENT" }
+  | { type: "GET_SELECTION_CONTENT" }
   | { type: "PAGE_READING"; text: string; title: string }
+  | { type: "PAGE_CONTENT"; content: PageContent }
   | { type: "SELECTION_READING"; text: string }
+  | { type: "SELECTION_CONTENT"; content: PageContent }
   | { type: "HIGHLIGHT_AT_CHAR"; charIndex: number }
   | { type: "CLEAR_HIGHLIGHT" }
   | { type: "TEARDOWN_READING" }
@@ -22,7 +28,9 @@ export type GeordiMessage =
 /** Messages that require a response from the content script. */
 export type GeordiRequestMessage =
   | { type: "GET_PAGE_READING" }
-  | { type: "GET_SELECTION_READING" };
+  | { type: "GET_SELECTION_READING" }
+  | { type: "GET_PAGE_CONTENT" }
+  | { type: "GET_SELECTION_CONTENT" };
 
 /** Messages forwarded from side panel to the active tab. */
 export type GeordiTabMessage =

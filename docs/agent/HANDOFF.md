@@ -1,36 +1,38 @@
 # Agent Handoff
 
-**Last updated:** 2026-06-23  
-**Last agent task:** Issue #41 — TNG engineering branding  
-**Branch:** `issue-41-tng-branding`
+**Last updated:** 2026-06-24  
+**Last agent task:** Issue #26 — Page content extraction contract  
+**Branch:** `codex/issue-26-content-extraction`
 
 ## Current state
 
 - WXT extension with TNG Operations / Engineering branded side panel
-- VISOR-inspired extension icon and header logo mark
-- WCAG AAA contrast tokens for dark and light color schemes
-- Reader stops and resets when the reading tab refreshes or navigates away
-- Changing voice during reading resumes from the current speech boundary
-- Extension version **0.2.6** (`apps/extension/package.json`)
-- 61 unit tests passing
+- Structured `PageContent` extraction for summaries and future AI providers
+- Read-aloud path unchanged (`preparePageReading` / `GET_PAGE_READING`)
+- New content-script messages: `GET_PAGE_CONTENT`, `GET_SELECTION_CONTENT`
+- Dev-mode `console.debug` for summary input inspection (`[geordi] PageContent`)
+- Extension version **0.2.6** (no bump — internal API only, no user-visible UI change)
+- 72 unit tests passing
 
 ## Completed this session
 
-- [x] Created GitHub issue #41 and `idea` / `design` labels for side-quest work
-- [x] VISOR logo for toolbar icon and side panel header
-- [x] TNG black-and-gold theme with AAA contrast and distinct button hover
-- [x] Version bump `0.2.5` → `0.2.6` (UX improvement)
-- [x] Verified `pnpm test:run` and `pnpm build:ext` pass
+- [x] Added `PageContent` contract in `lib/content/page-content.ts` (metadata, structure, guardrails, `toSummaryInput`)
+- [x] Added `extractPageContent()` / `extractSelectionContent()` in `lib/content/extract.ts`
+- [x] Extended DOM walk to collect headings and links (capped at 50 / 100)
+- [x] Guardrails for empty, truncated (100k chars), and failed extraction
+- [x] Wired `GET_PAGE_CONTENT` / `GET_SELECTION_CONTENT` through background → content script
+- [x] Re-exported `PageContent` from `lib/ai/types.ts` for provider adapters (#25)
+- [x] 11 new tests in `page-content.test.ts` and `extract.test.ts`
+- [x] Verified `pnpm test:run` (72 tests) and `pnpm build:ext` pass
 
 ## Next up (priority order)
 
-1. **#25** — Chrome summarizer provider (`ChromeSummarizationProvider.summarize()`)
-2. **#26** — Content extraction changes for AI features
-3. **#27** — Rich image description pipeline
-4. **#29** — Read-aloud UX (premium voices)
-5. **#28** — BYOK cloud provider
-6. **#30** — Availability/privacy UX
-7. Phase 2: Structured navigation (#17)
+1. **#25** — Chrome summarizer provider (`ChromeSummarizationProvider.summarize()` using `PageContent` / `toSummaryInput`)
+2. **#27** — Rich image description pipeline
+3. **#29** — Read-aloud UX (premium voices)
+4. **#28** — BYOK cloud provider
+5. **#30** — Availability/privacy UX
+6. Phase 2: Structured navigation (#17)
 
 ## Known blockers
 

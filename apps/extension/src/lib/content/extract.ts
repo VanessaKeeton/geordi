@@ -1,5 +1,16 @@
 import { computeSentenceStarts, sentencesToRanges } from "./range-map";
 import { isHiddenElement } from "./deep-dom";
+import {
+  buildFailedPageContent,
+  buildPageContent,
+  extractPageMetadata,
+  logPageContentForDev,
+  PAGE_CONTENT_MAX_HEADINGS,
+  PAGE_CONTENT_MAX_LINKS,
+  type PageContent,
+  type PageContentLink,
+  type PageContentStructure,
+} from "./page-content";
 
 const SKIP_TAGS = new Set([
   "script",
@@ -64,7 +75,10 @@ interface CollectOptions {
   skipFormControls: boolean;
   skipBoilerplate: boolean;
   boundaryRange?: Range;
+  collectStructure?: boolean;
 }
+
+const EMPTY_STRUCTURE: PageContentStructure = { headings: [], links: [] };
 
 function isVisible(el: Element): boolean {
   if (!("getBoundingClientRect" in el)) return false;
@@ -185,12 +199,27 @@ function getTextSliceInBoundary(
 }
 
 
+function isUsefulLink(el: Element): PageContentLink | null {
+  const href = el.getAttribute("href")?.trim();
+  if (!href || href.startsWith("javascript:")) return null;
+
+  const text = el.textContent?.replace(/\s+/g, " ").trim();
+  if (!text) return null;
+
+  return { text, href };
+}
+
 function collectSegments(
   root: Element,
   options: CollectOptions,
-): { segments: TextSegment[]; fullText: string } {
+): {
+  segments: TextSegment[];
+  fullText: string;
+  structure: PageContentStructure;
+} {
   let rawText = "";
   const rawSegments: Omit<TextSegment, "offset">[] = [];
+  const structure: PageContentStructure = { headings: [], links: [] };
 
   function appendPart(value: string): number {
     if (!value) return rawText.length;
@@ -243,6 +272,27 @@ function collectSegments(
       return;
     }
 
+    if (options.collectStructure) {
+      const headingMatch = /^h([1-6])$/.exec(tag);
+      if (
+        headingMatch &&
+        structure.headings.length < PAGE_CONTENT_MAX_HEADINGS
+      ) {
+        const text = el.textContent?.replace(/\s+/g, " ").trim();
+        if (text) {
+          structure.headings.push({
+            level: Number(headingMatch[1]),
+            text,
+          });
+        }
+      }
+
+      if (tag === "a" && structure.links.length < PAGE_CONTENT_MAX_LINKS) {
+        const link = isUsefulLink(el);
+        if (link) structure.links.push(link);
+      }
+    }
+
     for (const child of el.childNodes) {
       walk(child);
     }
@@ -259,7 +309,9 @@ function collectSegments(
     .replace(/ +/g, " ")
     .trim();
 
-  if (!fullText) return { segments: [], fullText: "" };
+  if (!fullText) {
+    return { segments: [], fullText: "", structure };
+  }
 
   // Recompute stream offsets against final normalized text.
   let cursor = 0;
@@ -272,7 +324,7 @@ function collectSegments(
     cursor = idx + segment.text.length;
   }
 
-  return { segments: aligned, fullText };
+  return { segments: aligned, fullText, structure };
 }
 
 export function findContentRoot(doc: Document = document): {
@@ -299,6 +351,80 @@ function buildReadingContent(
   const ranges = sentencesToRanges(doc, segments, sentences, fullText);
 
   return { sentences, ranges, segments, sentenceStarts, title };
+}
+
+function extractReadableContent(
+  doc: Document,
+  root: Element,
+  options: CollectOptions,
+  source: "page" | "selection",
+): PageContent {
+  const { fullText, structure } = collectSegments(root, {
+    ...options,
+    collectStructure: true,
+  });
+  const content = buildPageContent({
+    title: doc.title,
+    url: doc.location?.href ?? "",
+    source,
+    text: fullText,
+    metadata: extractPageMetadata(doc),
+    structure,
+  });
+  logPageContentForDev(content);
+  return content;
+}
+
+/** Extract structured page content for summaries and provider adapters. */
+export function extractPageContent(doc: Document = document): PageContent {
+  try {
+    const { root, skipBoilerplate } = findContentRoot(doc);
+    return extractReadableContent(
+      doc,
+      root,
+      { skipFormControls: true, skipBoilerplate },
+      "page",
+    );
+  } catch (error) {
+    const content = buildFailedPageContent(doc, "page", error);
+    logPageContentForDev(content);
+    return content;
+  }
+}
+
+/** Extract structured content from the user's current selection. */
+export function extractSelectionContent(doc: Document = document): PageContent {
+  const selection = doc.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    const content = buildPageContent({
+      title: doc.title,
+      url: doc.location?.href ?? "",
+      source: "selection",
+      text: "",
+      metadata: extractPageMetadata(doc),
+      structure: EMPTY_STRUCTURE,
+    });
+    logPageContentForDev(content);
+    return content;
+  }
+
+  try {
+    const boundaryRange = selection.getRangeAt(0);
+    return extractReadableContent(
+      doc,
+      doc.body,
+      {
+        skipFormControls: false,
+        skipBoilerplate: false,
+        boundaryRange,
+      },
+      "selection",
+    );
+  } catch (error) {
+    const content = buildFailedPageContent(doc, "selection", error);
+    logPageContentForDev(content);
+    return content;
+  }
 }
 
 /** Extract readable plain text from the page for TTS. */
