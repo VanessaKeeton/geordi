@@ -61,6 +61,44 @@
         </fieldset>
       </section>
 
+      <section aria-labelledby="summarize-heading">
+        <h2 id="summarize-heading">Summarize</h2>
+        <p id="summarize-availability" class="summarize-note"></p>
+        <div
+          id="summarize-setup"
+          class="summarize-setup"
+          aria-labelledby="summarize-setup-heading"
+          hidden
+        >
+          <p id="summarize-setup-heading" class="summarize-setup-headline"></p>
+          <p id="summarize-setup-detail" class="summarize-setup-detail"></p>
+          <ol id="summarize-setup-steps" class="summarize-setup-steps"></ol>
+        </div>
+        <div class="summarize-controls">
+        <fieldset>
+          <legend class="visually-hidden">Summary format</legend>
+          <label for="summary-format">Format</label>
+          <select id="summary-format" name="summaryFormat">
+            <option value="paragraph">Concise paragraph</option>
+            <option value="bullets">Bullet points</option>
+            <option value="takeaways">Key takeaways</option>
+          </select>
+        </fieldset>
+        <div class="button-row">
+          <button type="button" id="summarize-page">Summarize page</button>
+        </div>
+        </div>
+        <section
+          id="summary-result"
+          class="summary-result"
+          aria-labelledby="summary-result-heading"
+          hidden
+        >
+          <h3 id="summary-result-heading">Summary</h3>
+          <p id="summary-text"></p>
+        </section>
+      </section>
+
       <section aria-labelledby="status-heading">
         <h2 id="status-heading">Status</h2>
         <p id="status" role="status" aria-live="polite">Ready.</p>

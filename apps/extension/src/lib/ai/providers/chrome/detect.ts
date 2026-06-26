@@ -14,8 +14,45 @@ export type ChromeAiAvailability =
   | "no"
   | (string & {});
 
+export type ChromeSummarizerType = "key-points" | "tldr" | "teaser" | "headline";
+export type ChromeSummarizerFormat = "markdown" | "plain-text";
+export type ChromeSummarizerLength = "short" | "medium" | "long";
+
+export interface ChromeSummarizerCreateOptions {
+  type?: ChromeSummarizerType;
+  format?: ChromeSummarizerFormat;
+  length?: ChromeSummarizerLength;
+  sharedContext?: string;
+  outputLanguage?: string;
+  monitor?: (monitor: ChromeDownloadMonitor) => void;
+}
+
+export interface ChromeDownloadProgressEvent {
+  loaded: number;
+}
+
+export interface ChromeDownloadMonitor {
+  addEventListener(
+    type: "downloadprogress",
+    listener: (event: ChromeDownloadProgressEvent) => void,
+  ): void;
+}
+
+export interface ChromeSummarizerInstance {
+  summarize(
+    input: string,
+    options?: { context?: string },
+  ): Promise<string>;
+  destroy?(): Promise<void>;
+}
+
 export interface ChromeSummarizerApi {
-  availability(): Promise<ChromeAiAvailability>;
+  availability(
+    options?: ChromeSummarizerCreateOptions,
+  ): Promise<ChromeAiAvailability>;
+  create(
+    options?: ChromeSummarizerCreateOptions,
+  ): Promise<ChromeSummarizerInstance>;
 }
 
 export interface ChromeLanguageModelApi {
@@ -53,7 +90,8 @@ export function mapChromeAvailability(
     case "after-download":
       return {
         state: "downloadable",
-        message: "A one-time on-device model download is required.",
+        message:
+          "A one-time on-device model download is required. No API key needed.",
       };
     case "downloading":
       return {
@@ -65,7 +103,26 @@ export function mapChromeAvailability(
     default:
       return {
         state: "unsupported",
-        message: "This Chrome AI capability is not available on this device.",
+        message:
+          "Gemini Nano is not available on this device. Needs Chrome 138+ on desktop, ~22 GB free disk, and 16 GB RAM. Check chrome://on-device-internals and chrome://flags (#summarization-api-for-gemini-nano).",
       };
   }
+}
+
+/**
+ * Probe Summarizer availability the way Chrome's official extension sample does:
+ * call without options first, then with create options if needed.
+ */
+export async function probeChromeSummarizerAvailability(
+  summarizer: ChromeSummarizerApi,
+  createOptions?: ChromeSummarizerCreateOptions,
+): Promise<ChromeAiAvailability> {
+  const bare = await summarizer.availability();
+  if (bare !== "unavailable" && bare !== "no") {
+    return bare;
+  }
+
+  if (!createOptions) return bare;
+
+  return summarizer.availability(createOptions);
 }

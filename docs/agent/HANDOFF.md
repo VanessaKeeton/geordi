@@ -1,44 +1,44 @@
 # Agent Handoff
 
 **Last updated:** 2026-06-24  
-**Last agent task:** Issue #26 — Page content extraction contract  
-**Branch:** `codex/issue-26-content-extraction`
+**Last agent task:** Issue #25 — Chrome Built-in AI summarization  
+**Branch:** `codex/issue-25-chrome-summarizer`
 
 ## Current state
 
-- WXT extension with TNG Operations / Engineering branded side panel
-- Structured `PageContent` extraction for summaries and future AI providers
-- Read-aloud path unchanged (`preparePageReading` / `GET_PAGE_READING`)
-- New content-script messages: `GET_PAGE_CONTENT`, `GET_SELECTION_CONTENT`
-- Dev-mode `console.debug` for summary input inspection (`[geordi] PageContent`)
-- Extension version **0.2.6** (no bump — internal API only, no user-visible UI change)
-- 72 unit tests passing
+- Chrome `Summarizer` API adapter fully implemented (`ChromeSummarizationProvider.summarize()`)
+- Side panel **Summarize** section: format picker (paragraph / bullets / takeaways) + on-device summary output
+- Uses `PageContent` extraction + `toSummaryInput()` from #26; no remote network calls
+- Summaries auto-read aloud; Play/Pause/Stop work for summary playback
+- Built-in setup instructions when Gemini Nano / Summarizer flag is not enabled
+- Extension version **0.2.9** (`apps/extension/package.json`)
+- 94 unit tests passing
 
 ## Completed this session
 
-- [x] Added `PageContent` contract in `lib/content/page-content.ts` (metadata, structure, guardrails, `toSummaryInput`)
-- [x] Added `extractPageContent()` / `extractSelectionContent()` in `lib/content/extract.ts`
-- [x] Extended DOM walk to collect headings and links (capped at 50 / 100)
-- [x] Guardrails for empty, truncated (100k chars), and failed extraction
-- [x] Wired `GET_PAGE_CONTENT` / `GET_SELECTION_CONTENT` through background → content script
-- [x] Re-exported `PageContent` from `lib/ai/types.ts` for provider adapters (#25)
-- [x] 11 new tests in `page-content.test.ts` and `extract.test.ts`
-- [x] Verified `pnpm test:run` (72 tests) and `pnpm build:ext` pass
+- [x] Extended Chrome Summarizer API types in `providers/chrome/detect.ts`
+- [x] Implemented `ChromeSummarizationProvider.summarize()` with format options and download monitor
+- [x] Added `SummarizationOptions` / `SummaryStyle` mapping in `lib/ai/summarization-options.ts`
+- [x] Side panel UI and `summarize-page.ts` orchestration (`GET_PAGE_CONTENT` → provider)
+- [x] 10 new tests in `summarization.test.ts` and `summarization-options.test.ts`; updated registry tests
+- [x] Prefer local Chrome summarizer over BYOK in registry; flag/setup guidance in side panel
+- [x] Auto-read summaries with Play/Pause/Stop support
+- [x] Version bump `0.2.6` → `0.2.9`
+- [x] Verified `pnpm test:run` (94 tests) and `pnpm build:ext` pass
 
 ## Next up (priority order)
 
-1. **#25** — Chrome summarizer provider (`ChromeSummarizationProvider.summarize()` using `PageContent` / `toSummaryInput`)
-2. **#27** — Rich image description pipeline
-3. **#29** — Read-aloud UX (premium voices)
-4. **#28** — BYOK cloud provider
-5. **#30** — Availability/privacy UX
-6. Phase 2: Structured navigation (#17)
+1. **#27** — Rich image description pipeline
+2. **#29** — Read-aloud UX (premium voices)
+3. **#28** — BYOK cloud provider
+4. **#30** — Availability/privacy UX
+5. Phase 2: Structured navigation (#17)
 
 ## Known blockers
 
+- Chrome Built-in AI requires Chrome 138+, hardware requirements, and may need `chrome://flags` in preview builds
 - Highlight alignment depends on browser `boundary` event support (Chrome)
-- Chrome Built-in AI requires user flags / on-device model download in supported Chrome versions
-- Plain `pnpm --filter @geordi/extension exec tsc --noEmit` still fails on pre-existing project-wide typing gaps (Chrome/jsdom/test globals and older strictness issues); WXT production build passes
+- Plain `pnpm --filter @geordi/extension exec tsc --noEmit` still fails on pre-existing project-wide typing gaps; WXT production build passes
 
 ## Do not touch
 

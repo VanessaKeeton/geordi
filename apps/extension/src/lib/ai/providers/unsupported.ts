@@ -1,5 +1,6 @@
 import { unsupported } from "../availability";
 import type { SummarizationProvider, ImageDescriptionProvider } from "../contracts";
+import type { SummarizationOptions } from "../summarization-options";
 import type { ImageDescriptionInput, ProviderAvailability, ProviderResult } from "../types";
 
 function unavailableResult<T>(
@@ -23,7 +24,10 @@ export class UnsupportedSummarizationProvider implements SummarizationProvider {
     );
   }
 
-  async summarize(_text: string): Promise<ProviderResult<string>> {
+  async summarize(
+    _text: string,
+    _options?: SummarizationOptions,
+  ): Promise<ProviderResult<string>> {
     const availability = await this.checkAvailability();
     return unavailableResult(
       availability,
