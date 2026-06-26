@@ -6,6 +6,12 @@ import {
   getSummarizerSetupStatus,
   summarizeActivePage,
 } from "./summarize-page";
+import {
+  clearSummaryHighlight,
+  highlightSummaryAtChar,
+  prepareSummaryForReading,
+  teardownSummaryMarkup,
+} from "./summary-highlight";
 
 const statusEl = document.getElementById("status")!;
 const summarizeAvailabilityEl = document.getElementById("summarize-availability")!;
@@ -21,6 +27,7 @@ const summaryFormatSelect = document.getElementById(
   "summary-format",
 ) as HTMLSelectElement;
 const summaryResultSection = document.getElementById("summary-result")!;
+const summaryScrollEl = document.getElementById("summary-scroll")!;
 const summaryTextEl = document.getElementById("summary-text")!;
 const summarizePageButton = document.getElementById("summarize-page")!;
 const voiceSelect = document.getElementById("voice-select") as HTMLSelectElement;
@@ -34,8 +41,26 @@ let pendingText = "";
 let pendingSource: ReadingSource | null = null;
 let readingStartToken = 0;
 
+function isSummaryReadingSource(): boolean {
+  return pendingSource === "summary";
+}
+
+function clearSummaryReadingHighlight() {
+  clearSummaryHighlight(summaryTextEl);
+}
+
+function highlightSummaryChar(charIndex: number) {
+  highlightSummaryAtChar(summaryTextEl, charIndex, summaryScrollEl);
+}
+
 function isPageReadingSource(): boolean {
   return pendingSource === "page" || pendingSource === "selection";
+}
+
+async function speakSummary(text: string): Promise<void> {
+  const speakable = prepareSummaryForReading(summaryTextEl, text);
+  summaryResultSection.hidden = false;
+  await reader.speakText(speakable);
 }
 
 function setStatus(message: string) {
@@ -107,7 +132,12 @@ async function startReading(source: ReadingSource): Promise<void> {
 
   pendingText = text;
   pendingSource = source;
-  await reader.speakText(pendingText);
+
+  if (source === "summary") {
+    await speakSummary(text);
+  } else {
+    await reader.speakText(pendingText);
+  }
 }
 
 async function loadPageReading(): Promise<string> {
@@ -214,6 +244,7 @@ async function initSettings() {
 }
 
 function hideSummaryResult(): void {
+  teardownSummaryMarkup(summaryTextEl);
   summaryResultSection.hidden = true;
   summaryTextEl.textContent = "";
 }
@@ -242,7 +273,7 @@ async function handleSummarizePage(): Promise<void> {
     pendingText = summary;
     pendingSource = "summary";
     setStatus("Reading summary…");
-    await reader.speakText(summary);
+    await speakSummary(summary);
     await refreshSummarizeUi();
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to summarize page");
@@ -258,7 +289,7 @@ chrome.runtime.onMessage.addListener((message: GeordiMessage) => {
 });
 
 reader.on((event) => {
-  const readingSummary = pendingSource === "summary";
+  const readingSummary = isSummaryReadingSource();
 
   switch (event.type) {
     case "start":
@@ -266,14 +297,16 @@ reader.on((event) => {
       break;
     case "pause":
       setStatus("Paused.");
-      if (!readingSummary) clearHighlight();
+      if (readingSummary) clearSummaryReadingHighlight();
+      else clearHighlight();
       break;
     case "resume":
       setStatus(readingSummary ? "Reading summary…" : "Reading…");
       break;
     case "end":
       setStatus(readingSummary ? "Summary finished." : "Finished.");
-      if (!readingSummary) {
+      if (readingSummary) clearSummaryReadingHighlight();
+      else {
         clearHighlight();
         teardownReading();
       }
@@ -282,13 +315,15 @@ reader.on((event) => {
       setStatus(`Error: ${event.message}`);
       break;
     case "word":
-      if (!readingSummary) highlightAtChar(event.charIndex);
+      if (readingSummary) highlightSummaryChar(event.charIndex);
+      else highlightAtChar(event.charIndex);
       break;
   }
 });
 
 document.getElementById("read-page")!.addEventListener("click", async () => {
   try {
+    clearSummaryReadingHighlight();
     await startReading("page");
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to read page");
@@ -334,7 +369,9 @@ document.getElementById("pause")!.addEventListener("click", () => {
 document.getElementById("stop")!.addEventListener("click", () => {
   readingStartToken += 1;
   reader.stop();
-  if (isPageReadingSource()) {
+  if (isSummaryReadingSource()) {
+    clearSummaryReadingHighlight();
+  } else if (isPageReadingSource()) {
     clearHighlight();
     teardownReading();
   }

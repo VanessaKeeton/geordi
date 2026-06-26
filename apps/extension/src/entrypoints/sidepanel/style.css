@@ -257,6 +257,11 @@ input[type="range"] {
   color: var(--accent-emphasis);
 }
 
+.summary-scroll {
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
 #summary-text {
   margin: 0;
   white-space: pre-wrap;

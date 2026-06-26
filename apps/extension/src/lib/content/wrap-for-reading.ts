@@ -173,10 +173,52 @@ export function clearReadingStyles(container: Element | Document): void {
   });
 }
 
+export type HighlightScrollMode = "page" | "contained" | "none";
+
+export interface HighlightOptions {
+  /** How to scroll the active word into view. Default: page (full document). */
+  scrollMode?: HighlightScrollMode;
+  /** Scroll root when scrollMode is "contained". */
+  scrollContainer?: HTMLElement;
+}
+
+function scrollWordIntoContainer(
+  scrollRoot: HTMLElement,
+  word: Element,
+): void {
+  const rootRect = scrollRoot.getBoundingClientRect();
+  const wordRect = word.getBoundingClientRect();
+
+  if (wordRect.top < rootRect.top) {
+    scrollRoot.scrollTop -= rootRect.top - wordRect.top;
+  } else if (wordRect.bottom > rootRect.bottom) {
+    scrollRoot.scrollTop += wordRect.bottom - rootRect.bottom;
+  }
+}
+
+function scrollHighlightedWord(
+  word: Element,
+  options?: HighlightOptions,
+): void {
+  const scrollMode = options?.scrollMode ?? "page";
+
+  if (scrollMode === "none") {
+    return;
+  }
+
+  if (scrollMode === "contained" && options?.scrollContainer) {
+    scrollWordIntoContainer(options.scrollContainer, word);
+    return;
+  }
+
+  word.scrollIntoView?.({ block: "center", behavior: "smooth" });
+}
+
 /** Highlight word + sentence at a global charIndex (speechify-dry-run pattern). */
 export function highlightAtCharIndex(
   container: Element | Document,
   charIndex: number,
+  options?: HighlightOptions,
 ): boolean {
   clearReadingStyles(container);
 
@@ -194,7 +236,7 @@ export function highlightAtCharIndex(
       if (charIndex >= start && charIndex < end) {
         sentence.classList.add(HL_SENTENCE_CLASS);
         word.classList.add(HL_WORD_CLASS);
-        word.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        scrollHighlightedWord(word, options);
         return true;
       }
 

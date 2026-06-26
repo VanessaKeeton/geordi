@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getWrappedSpeakableText,
   highlightAtCharIndex,
@@ -106,6 +106,70 @@ describe("wrap-for-reading", () => {
     }
 
     expect(targetWord?.classList.contains(HL_WORD_CLASS)).toBe(true);
+  });
+
+  it("scrolls within a container when scrollMode is contained", () => {
+    if (!Element.prototype.scrollIntoView) {
+      Element.prototype.scrollIntoView = () => {};
+    }
+
+    wrapForReading(container, {
+      skipFormControls: true,
+      skipBoilerplate: false,
+    });
+
+    const text = getWrappedSpeakableText(container);
+    const secondSentenceStart = text.indexOf("Second");
+    expect(secondSentenceStart).toBeGreaterThan(0);
+
+    const scrollRoot = document.createElement("div");
+    scrollRoot.scrollTop = 0;
+
+    const rect = (top: number, bottom: number): DOMRect =>
+      ({
+        top,
+        bottom,
+        left: 0,
+        right: 100,
+        width: 100,
+        height: bottom - top,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    vi.spyOn(scrollRoot, "getBoundingClientRect").mockReturnValue(rect(0, 100));
+
+    const words = [...container.querySelectorAll("[data-geordi-word]")];
+    let charCount = 0;
+    let targetWord: HTMLElement | null = null;
+    for (const word of words) {
+      const length = word.textContent?.length ?? 0;
+      if (
+        secondSentenceStart >= charCount &&
+        secondSentenceStart < charCount + length
+      ) {
+        targetWord = word as HTMLElement;
+        break;
+      }
+      charCount += length;
+    }
+    expect(targetWord).toBeTruthy();
+    vi.spyOn(targetWord!, "getBoundingClientRect").mockReturnValue(rect(120, 140));
+
+    const scrollIntoViewSpy = vi
+      .spyOn(Element.prototype, "scrollIntoView")
+      .mockImplementation(() => {});
+
+    highlightAtCharIndex(container, secondSentenceStart, {
+      scrollMode: "contained",
+      scrollContainer: scrollRoot,
+    });
+
+    expect(scrollIntoViewSpy).not.toHaveBeenCalled();
+    expect(scrollRoot.scrollTop).toBe(40);
+
+    scrollIntoViewSpy.mockRestore();
   });
 
   it("wraps text inside open shadow roots", () => {
