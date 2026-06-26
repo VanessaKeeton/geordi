@@ -1,5 +1,6 @@
 import type { GeordiMessage } from "../../lib/messages";
 import type { SummaryStyle } from "../../lib/ai/summarization-options";
+import { renderSummaryDisplay } from "../../lib/content/summary-display";
 import { createSpeechReader } from "../../lib/speech/reader";
 import {
   canSummarizeWithSetup,
@@ -57,8 +58,8 @@ function isPageReadingSource(): boolean {
   return pendingSource === "page" || pendingSource === "selection";
 }
 
-async function speakSummary(text: string): Promise<void> {
-  const speakable = prepareSummaryForReading(summaryTextEl, text);
+async function speakSummary(text: string, style: SummaryStyle): Promise<void> {
+  const speakable = prepareSummaryForReading(summaryTextEl, text, style);
   summaryResultSection.hidden = false;
   await reader.speakText(speakable);
 }
@@ -134,7 +135,8 @@ async function startReading(source: ReadingSource): Promise<void> {
   pendingSource = source;
 
   if (source === "summary") {
-    await speakSummary(text);
+    const style = summaryFormatSelect.value as SummaryStyle;
+    await speakSummary(text, style);
   } else {
     await reader.speakText(pendingText);
   }
@@ -246,11 +248,11 @@ async function initSettings() {
 function hideSummaryResult(): void {
   teardownSummaryMarkup(summaryTextEl);
   summaryResultSection.hidden = true;
-  summaryTextEl.textContent = "";
+  summaryTextEl.replaceChildren();
 }
 
-function showSummaryResult(summary: string): void {
-  summaryTextEl.textContent = summary;
+function showSummaryResult(summary: string, style: SummaryStyle): void {
+  renderSummaryDisplay(summaryTextEl, summary, style);
   summaryResultSection.hidden = false;
 }
 
@@ -264,16 +266,17 @@ async function handleSummarizePage(): Promise<void> {
   hideSummaryResult();
 
   try {
+    const style = summaryFormatSelect.value as SummaryStyle;
     const { summary } = await summarizeActivePage({
-      style: summaryFormatSelect.value as SummaryStyle,
+      style,
       requestFromActiveTab,
       onStatus: setStatus,
     });
-    showSummaryResult(summary);
+    showSummaryResult(summary, style);
     pendingText = summary;
     pendingSource = "summary";
     setStatus("Reading summary…");
-    await speakSummary(summary);
+    await speakSummary(summary, style);
     await refreshSummarizeUi();
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to summarize page");

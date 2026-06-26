@@ -262,8 +262,20 @@ input[type="range"] {
   overflow-y: auto;
 }
 
-#summary-text {
+.summary-text {
   margin: 0;
+}
+
+.summary-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.summary-list li + li {
+  margin-top: 0.5rem;
+}
+
+#summary-text {
   white-space: pre-wrap;
 }
 

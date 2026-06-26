@@ -5,13 +5,16 @@ import {
   unwrapReadingMarkup,
   wrapForReading,
 } from "../../lib/content/wrap-for-reading";
+import { renderSummaryDisplay } from "../../lib/content/summary-display";
+import type { SummaryStyle } from "../../lib/ai/summarization-options";
 
 /** Wrap summary text for charIndex-aligned highlighting in the side panel. */
 export function prepareSummaryForReading(
   container: HTMLElement,
   text: string,
+  style: SummaryStyle,
 ): string {
-  container.textContent = text;
+  renderSummaryDisplay(container, text, style);
   wrapForReading(container, {
     skipFormControls: false,
     skipBoilerplate: false,

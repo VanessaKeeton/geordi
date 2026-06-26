@@ -29,6 +29,7 @@ describe("summary-highlight", () => {
     const speakable = prepareSummaryForReading(
       container,
       "Hello world. Second sentence.",
+      "paragraph",
     );
     expect(speakable).toBe("Hello world. Second sentence.");
     expect(container.querySelectorAll(`[${WORD_ATTR}]`).length).toBeGreaterThan(
@@ -43,7 +44,7 @@ describe("summary-highlight", () => {
     scrollRoot.append(container);
     document.body.append(scrollRoot);
 
-    prepareSummaryForReading(container, "Hello world.");
+    prepareSummaryForReading(container, "Hello world.", "paragraph");
     highlightSummaryAtChar(container, 0, scrollRoot);
     const word = container.querySelector(`[${WORD_ATTR}].${HL_WORD_CLASS}`);
     const sentence = container.querySelector(
@@ -61,7 +62,7 @@ describe("summary-highlight", () => {
     const scrollRoot = document.createElement("div");
     document.body.append(scrollRoot);
     scrollRoot.append(container);
-    prepareSummaryForReading(container, "Hello world. Second sentence here.");
+    prepareSummaryForReading(container, "Hello world. Second sentence here.", "paragraph");
 
     const scrollIntoViewSpy = vi
       .spyOn(Element.prototype, "scrollIntoView")
@@ -80,7 +81,7 @@ describe("summary-highlight", () => {
     scrollRoot.append(container);
     document.body.append(scrollRoot);
 
-    prepareSummaryForReading(container, "Hello world.");
+    prepareSummaryForReading(container, "Hello world.", "paragraph");
     highlightSummaryAtChar(container, 0, scrollRoot);
     clearSummaryHighlight(container);
     expect(container.querySelector(`.${HL_WORD_CLASS}`)).toBeNull();
@@ -88,7 +89,7 @@ describe("summary-highlight", () => {
   });
 
   it("teardown removes reading markup", () => {
-    prepareSummaryForReading(container, "Hello world.");
+    prepareSummaryForReading(container, "Hello world.", "paragraph");
     teardownSummaryMarkup(container);
     expect(container.querySelector(`[${WORD_ATTR}]`)).toBeNull();
     expect(container.textContent?.trim()).toBe("Hello world.");
