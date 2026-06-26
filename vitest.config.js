@@ -5,6 +5,7 @@ export default defineConfig({
     environment: "node",
     environmentMatchGlobs: [
       ["apps/extension/src/lib/content/**", "jsdom"],
+      ["apps/extension/src/entrypoints/sidepanel/**", "jsdom"],
     ],
     include: ["apps/extension/src/**/*.test.ts"],
     exclude: ["node_modules", "apps/extension/.output"],

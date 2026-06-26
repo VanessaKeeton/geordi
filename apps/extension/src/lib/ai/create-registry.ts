@@ -28,7 +28,7 @@ export function createProviderRegistry(
 
   registry.registerReadAloud(new WebSpeechReadAloudProvider());
 
-  if (browser === "chrome") {
+  if (browser === "chrome" || browser === "edge") {
     registry
       .registerSummarization(new ChromeSummarizationProvider())
       .registerSummarization(new ByokSummarizationProvider())

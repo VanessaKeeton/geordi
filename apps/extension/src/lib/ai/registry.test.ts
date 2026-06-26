@@ -56,18 +56,33 @@ describe("createProviderRegistry", () => {
   it("returns structured failure from unsupported summarization", async () => {
     const registry = createProviderRegistry({ browser: "safari" });
     const provider = await registry.getSummarizationProvider();
-    expect(provider?.id).toBe("byok-cloud");
+    expect(provider?.id).toBe("unsupported-summarization");
 
     const result = await provider!.summarize("hello");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.availability.state).toBe("requires_configuration");
+      expect(result.availability.state).toBe("unsupported");
     }
+  });
+
+  it("prefers local Chrome summarizer over BYOK when Chrome API is missing", async () => {
+    const registry = createProviderRegistry({ browser: "chrome" });
+    const provider = await registry.getSummarizationProvider();
+    expect(provider?.id).toBe("chrome-summarizer");
+
+    const availability = await registry.bestLocalSummarizationAvailability();
+    expect(availability?.providerId).toBe("chrome-summarizer");
+    expect(availability?.state).toBe("unsupported");
+    expect(availability?.message).not.toContain("API key");
   });
 
   it("probes Chrome summarizer availability without throwing", async () => {
     (globalThis as ChromeAiGlobals).Summarizer = {
       availability: async () => "available",
+      create: async () => ({
+        summarize: async () => "Local summary.",
+        destroy: async () => undefined,
+      }),
     };
 
     const registry = createProviderRegistry({ browser: "chrome" });
@@ -78,23 +93,26 @@ describe("createProviderRegistry", () => {
     expect(availability.state).toBe("available");
 
     const result = await provider!.summarize("Article text");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toContain("#25");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toBe("Local summary.");
     }
   });
 
   it("returns downloadable message when Chrome model is not local yet", async () => {
     (globalThis as ChromeAiGlobals).Summarizer = {
       availability: async () => "downloadable",
+      create: async () => ({
+        summarize: async () => "Summary after download.",
+      }),
     };
 
     const registry = createProviderRegistry({ browser: "chrome" });
     const provider = await registry.getSummarizationProvider();
     const result = await provider!.summarize("Article text");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.availability.state).toBe("downloadable");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toBe("Summary after download.");
     }
   });
 

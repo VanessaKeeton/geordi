@@ -6,6 +6,12 @@ import type {
 } from "./contracts";
 import type { AICapability, ProviderAvailability } from "./types";
 
+/** Free, local summarization — never BYOK / cloud (#28). */
+export const LOCAL_SUMMARIZATION_PROVIDER_IDS = new Set([
+  "chrome-summarizer",
+  "unsupported-summarization",
+]);
+
 type CapabilityProviders = {
   summarization: SummarizationProvider[];
   imageDescription: ImageDescriptionProvider[];
@@ -60,9 +66,34 @@ export class ProviderRegistry {
     return pickBestAvailability(items);
   }
 
-  async getSummarizationProvider(): Promise<SummarizationProvider | undefined> {
+  /** Best availability among free local summarization providers (excludes BYOK). */
+  async bestLocalSummarizationAvailability(): Promise<
+    ProviderAvailability | undefined
+  > {
     const items = await Promise.all(
-      this.providers.summarization.map(async (provider) => ({
+      this.providers.summarization
+        .filter((provider) =>
+          LOCAL_SUMMARIZATION_PROVIDER_IDS.has(provider.id),
+        )
+        .map((provider) => provider.checkAvailability()),
+    );
+    return pickBestAvailability(items);
+  }
+
+  /** Primary summarization provider for the free tier (Chrome built-in or unsupported). */
+  async getSummarizationProvider(): Promise<SummarizationProvider | undefined> {
+    return this.pickBestProvider(
+      this.providers.summarization.filter((provider) =>
+        LOCAL_SUMMARIZATION_PROVIDER_IDS.has(provider.id),
+      ),
+    );
+  }
+
+  private async pickBestProvider<T extends { checkAvailability(): Promise<ProviderAvailability> }>(
+    providers: readonly T[],
+  ): Promise<T | undefined> {
+    const items = await Promise.all(
+      providers.map(async (provider) => ({
         provider,
         availability: await provider.checkAvailability(),
       })),
@@ -80,37 +111,11 @@ export class ProviderRegistry {
   async getImageDescriptionProvider(): Promise<
     ImageDescriptionProvider | undefined
   > {
-    const items = await Promise.all(
-      this.providers.imageDescription.map(async (provider) => ({
-        provider,
-        availability: await provider.checkAvailability(),
-      })),
-    );
-
-    const ranked = [...items].sort(
-      (a, b) =>
-        rankAvailability(a.availability.state) -
-        rankAvailability(b.availability.state),
-    );
-
-    return ranked[0]?.provider;
+    return this.pickBestProvider(this.providers.imageDescription);
   }
 
   async getReadAloudProvider(): Promise<ReadAloudProvider | undefined> {
-    const items = await Promise.all(
-      this.providers.readAloud.map(async (provider) => ({
-        provider,
-        availability: await provider.checkAvailability(),
-      })),
-    );
-
-    const ranked = [...items].sort(
-      (a, b) =>
-        rankAvailability(a.availability.state) -
-        rankAvailability(b.availability.state),
-    );
-
-    return ranked[0]?.provider;
+    return this.pickBestProvider(this.providers.readAloud);
   }
 }
 

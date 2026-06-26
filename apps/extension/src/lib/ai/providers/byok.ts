@@ -1,5 +1,6 @@
 import { requiresConfiguration } from "../availability";
 import type { SummarizationProvider } from "../contracts";
+import type { SummarizationOptions } from "../summarization-options";
 import type { ProviderAvailability, ProviderResult } from "../types";
 
 /**
@@ -16,7 +17,10 @@ export class ByokSummarizationProvider implements SummarizationProvider {
     );
   }
 
-  async summarize(_text: string): Promise<ProviderResult<string>> {
+  async summarize(
+    _text: string,
+    _options?: SummarizationOptions,
+  ): Promise<ProviderResult<string>> {
     const availability = await this.checkAvailability();
     return {
       ok: false,
