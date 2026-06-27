@@ -1,6 +1,7 @@
 /** Message types passed between extension contexts. */
 
 import type { PageContent } from "./content/page-content";
+import type { PageImageDiscoveryResult } from "./content/page-images";
 
 export type SpeechEvent =
   | { type: "start" }
@@ -15,8 +16,10 @@ export type GeordiMessage =
   | { type: "GET_SELECTION_READING" }
   | { type: "GET_PAGE_CONTENT" }
   | { type: "GET_SELECTION_CONTENT" }
+  | { type: "GET_PAGE_IMAGES" }
   | { type: "PAGE_READING"; text: string; title: string }
   | { type: "PAGE_CONTENT"; content: PageContent }
+  | { type: "PAGE_IMAGES"; discovery: PageImageDiscoveryResult }
   | { type: "SELECTION_READING"; text: string }
   | { type: "SELECTION_CONTENT"; content: PageContent }
   | { type: "HIGHLIGHT_AT_CHAR"; charIndex: number }
@@ -30,7 +33,8 @@ export type GeordiRequestMessage =
   | { type: "GET_PAGE_READING" }
   | { type: "GET_SELECTION_READING" }
   | { type: "GET_PAGE_CONTENT" }
-  | { type: "GET_SELECTION_CONTENT" };
+  | { type: "GET_SELECTION_CONTENT" }
+  | { type: "GET_PAGE_IMAGES" };
 
 /** Messages forwarded from side panel to the active tab. */
 export type GeordiTabMessage =

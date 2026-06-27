@@ -8,6 +8,7 @@ import {
   extractPageContent,
   extractSelectionContent,
 } from "../lib/content/extract";
+import { discoverPageImages } from "../lib/content/page-images";
 import {
   clearReadingStyles,
   highlightAtCharIndex,
@@ -56,6 +57,14 @@ export default defineContentScript({
             sendResponse({
               type: "SELECTION_CONTENT",
               content: extractSelectionContent(),
+            });
+            return true;
+          }
+
+          if (message.type === "GET_PAGE_IMAGES") {
+            sendResponse({
+              type: "PAGE_IMAGES",
+              discovery: discoverPageImages(),
             });
             return true;
           }
