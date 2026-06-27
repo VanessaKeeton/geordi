@@ -5,6 +5,8 @@ const TAB_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_SELECTION_READING",
   "GET_PAGE_CONTENT",
   "GET_SELECTION_CONTENT",
+  "GET_PAGE_IMAGES",
+  "GET_IMAGE_DESCRIPTION_INPUT",
   "HIGHLIGHT_AT_CHAR",
   "CLEAR_HIGHLIGHT",
   "TEARDOWN_READING",
@@ -15,6 +17,8 @@ const REQUEST_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_SELECTION_READING",
   "GET_PAGE_CONTENT",
   "GET_SELECTION_CONTENT",
+  "GET_PAGE_IMAGES",
+  "GET_IMAGE_DESCRIPTION_INPUT",
 ]);
 
 /** Tab that initiated the current reading session (highlights must target this tab). */

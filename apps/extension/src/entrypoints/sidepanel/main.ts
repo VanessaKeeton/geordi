@@ -1,5 +1,7 @@
 import type { GeordiMessage } from "../../lib/messages";
 import type { SummaryStyle } from "../../lib/ai/summarization-options";
+import { formatPageImageLabel } from "../../lib/content/page-images";
+import type { PageImageCandidate } from "../../lib/content/page-images";
 import { renderSummaryDisplay } from "../../lib/content/summary-display";
 import { createSpeechReader } from "../../lib/speech/reader";
 import {
@@ -7,6 +9,12 @@ import {
   getSummarizerSetupStatus,
   summarizeActivePage,
 } from "./summarize-page";
+import {
+  canDescribeImages,
+  describeActivePageImage,
+  discoverImagesOnActivePage,
+  getImageDescriptionAvailabilityMessage,
+} from "./describe-page-image";
 import {
   clearSummaryHighlight,
   highlightSummaryAtChar,
@@ -31,19 +39,35 @@ const summaryResultSection = document.getElementById("summary-result")!;
 const summaryScrollEl = document.getElementById("summary-scroll")!;
 const summaryTextEl = document.getElementById("summary-text")!;
 const summarizePageButton = document.getElementById("summarize-page")!;
+const imagesAvailabilityEl = document.getElementById("images-availability")!;
+const findPageImagesButton = document.getElementById("find-page-images")!;
+const imagePickerFieldset = document.getElementById("image-picker-fieldset")!;
+const imageSelect = document.getElementById("image-select") as HTMLSelectElement;
+const describeImageButton = document.getElementById("describe-image")!;
+const readImageDescriptionButton = document.getElementById("read-image-description")!;
+const imageDescriptionResultSection = document.getElementById(
+  "image-description-result",
+)!;
+const imageDescriptionLabelEl = document.getElementById("image-description-label")!;
+const imageDescriptionTextEl = document.getElementById("image-description-text")!;
 const voiceSelect = document.getElementById("voice-select") as HTMLSelectElement;
 const speedRange = document.getElementById("speed-range") as HTMLInputElement;
 const speedValue = document.getElementById("speed-value")!;
 
 const reader = createSpeechReader();
-type ReadingSource = "page" | "selection" | "summary";
+type ReadingSource = "page" | "selection" | "summary" | "imageDescription";
 
 let pendingText = "";
 let pendingSource: ReadingSource | null = null;
 let readingStartToken = 0;
+let discoveredImages: PageImageCandidate[] = [];
 
 function isSummaryReadingSource(): boolean {
   return pendingSource === "summary";
+}
+
+function isImageDescriptionReadingSource(): boolean {
+  return pendingSource === "imageDescription";
 }
 
 function clearSummaryReadingHighlight() {
@@ -95,7 +119,11 @@ function resetReaderOnNavigation() {
   reader.stop(false);
 
   const summaryText = summaryTextEl.textContent?.trim();
-  if (summaryText) {
+  const imageDescriptionText = imageDescriptionTextEl.textContent?.trim();
+  if (imageDescriptionText) {
+    pendingText = imageDescriptionText;
+    pendingSource = "imageDescription";
+  } else if (summaryText) {
     pendingText = summaryText;
     pendingSource = "summary";
   } else {
@@ -121,6 +149,14 @@ async function startReading(source: ReadingSource): Promise<void> {
         : summaryTextEl.textContent?.trim() ?? "";
     if (!text) {
       throw new Error("No summary to read. Summarize a page first.");
+    }
+  } else if (source === "imageDescription") {
+    text =
+      pendingSource === "imageDescription" && pendingText
+        ? pendingText
+        : imageDescriptionTextEl.textContent?.trim() ?? "";
+    if (!text) {
+      throw new Error("No image description to read. Describe an image first.");
     }
   } else {
     text =
@@ -237,12 +273,146 @@ async function refreshSummarizeUi(): Promise<void> {
   );
 }
 
+function updateImageActionButtons(): void {
+  const hasSelection = Boolean(imageSelect.value);
+  const hasDescription = Boolean(imageDescriptionTextEl.textContent?.trim());
+  describeImageButton.disabled = !hasSelection;
+  readImageDescriptionButton.disabled = !hasDescription;
+  describeImageButton.setAttribute("aria-disabled", String(!hasSelection));
+  readImageDescriptionButton.setAttribute(
+    "aria-disabled",
+    String(!hasDescription),
+  );
+}
+
+function populateImageSelect(images: PageImageCandidate[]): void {
+  imageSelect.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent =
+    images.length === 0 ? "No images found" : "Select an image";
+  imageSelect.append(placeholder);
+
+  for (const image of images) {
+    const option = document.createElement("option");
+    option.value = image.id;
+    option.textContent = formatPageImageLabel(image);
+    imageSelect.append(option);
+  }
+
+  imagePickerFieldset.hidden = false;
+  updateImageActionButtons();
+}
+
+function hideImageDescriptionResult(): void {
+  imageDescriptionResultSection.hidden = true;
+  imageDescriptionLabelEl.textContent = "";
+  imageDescriptionTextEl.textContent = "";
+  readImageDescriptionButton.disabled = true;
+}
+
+function showImageDescriptionResult(label: string, description: string): void {
+  imageDescriptionLabelEl.textContent = label;
+  imageDescriptionTextEl.textContent = description;
+  imageDescriptionResultSection.hidden = false;
+  updateImageActionButtons();
+}
+
+async function refreshImagesUi(): Promise<void> {
+  imagesAvailabilityEl.textContent =
+    await getImageDescriptionAvailabilityMessage();
+  const enabled = await canDescribeImages();
+  findPageImagesButton.disabled = !enabled;
+  findPageImagesButton.setAttribute("aria-disabled", String(!enabled));
+  if (!enabled) {
+    describeImageButton.disabled = true;
+    describeImageButton.setAttribute("aria-disabled", "true");
+  } else {
+    updateImageActionButtons();
+  }
+}
+
+async function handleFindPageImages(): Promise<void> {
+  hideImageDescriptionResult();
+  discoveredImages = [];
+  imageSelect.value = "";
+
+  try {
+    setStatus("Finding images on page…");
+    discoveredImages = await discoverImagesOnActivePage(requestFromActiveTab);
+    populateImageSelect(discoveredImages);
+
+    if (discoveredImages.length === 0) {
+      setStatus("No meaningful images found on this page.");
+      return;
+    }
+
+    imageSelect.value = discoveredImages[0]?.id ?? "";
+    updateImageActionButtons();
+    setStatus(
+      `Found ${discoveredImages.length} image${discoveredImages.length === 1 ? "" : "s"}.`,
+    );
+    await refreshImagesUi();
+  } catch (err) {
+    imagePickerFieldset.hidden = true;
+    setStatus(err instanceof Error ? err.message : "Failed to find images");
+    await refreshImagesUi();
+  }
+}
+
+async function handleDescribeImage(): Promise<void> {
+  const candidateId = imageSelect.value;
+  if (!candidateId) {
+    setStatus("Select an image first.");
+    return;
+  }
+
+  readingStartToken += 1;
+  reader.stop(false);
+  if (isPageReadingSource()) {
+    clearHighlight();
+    teardownReading();
+  }
+  if (isSummaryReadingSource()) {
+    clearSummaryReadingHighlight();
+  }
+  hideImageDescriptionResult();
+
+  try {
+    const { description, label } = await describeActivePageImage({
+      candidateId,
+      requestFromActiveTab,
+      onStatus: setStatus,
+    });
+    showImageDescriptionResult(label, description);
+    pendingText = description;
+    pendingSource = "imageDescription";
+    setStatus("Reading image description…");
+    await reader.speakText(description);
+    await refreshImagesUi();
+  } catch (err) {
+    setStatus(err instanceof Error ? err.message : "Failed to describe image");
+    await refreshImagesUi();
+  }
+}
+
+async function handleReadImageDescription(): Promise<void> {
+  try {
+    await startReading("imageDescription");
+  } catch (err) {
+    setStatus(
+      err instanceof Error ? err.message : "Failed to read image description",
+    );
+  }
+}
+
 async function initSettings() {
   const settings = await reader.loadSettings();
   speedRange.value = String(settings.rate);
   speedValue.textContent = `${settings.rate.toFixed(1)}×`;
   populateVoices();
   await refreshSummarizeUi();
+  await refreshImagesUi();
 }
 
 function hideSummaryResult(): void {
@@ -293,23 +463,42 @@ chrome.runtime.onMessage.addListener((message: GeordiMessage) => {
 
 reader.on((event) => {
   const readingSummary = isSummaryReadingSource();
+  const readingImageDescription = isImageDescriptionReadingSource();
 
   switch (event.type) {
     case "start":
-      setStatus(readingSummary ? "Reading summary…" : "Reading…");
+      setStatus(
+        readingSummary
+          ? "Reading summary…"
+          : readingImageDescription
+            ? "Reading image description…"
+            : "Reading…",
+      );
       break;
     case "pause":
       setStatus("Paused.");
       if (readingSummary) clearSummaryReadingHighlight();
-      else clearHighlight();
+      else if (!readingImageDescription) clearHighlight();
       break;
     case "resume":
-      setStatus(readingSummary ? "Reading summary…" : "Reading…");
+      setStatus(
+        readingSummary
+          ? "Reading summary…"
+          : readingImageDescription
+            ? "Reading image description…"
+            : "Reading…",
+      );
       break;
     case "end":
-      setStatus(readingSummary ? "Summary finished." : "Finished.");
+      setStatus(
+        readingSummary
+          ? "Summary finished."
+          : readingImageDescription
+            ? "Image description finished."
+            : "Finished.",
+      );
       if (readingSummary) clearSummaryReadingHighlight();
-      else {
+      else if (!readingImageDescription) {
         clearHighlight();
         teardownReading();
       }
@@ -319,7 +508,7 @@ reader.on((event) => {
       break;
     case "word":
       if (readingSummary) highlightSummaryChar(event.charIndex);
-      else highlightAtChar(event.charIndex);
+      else if (!readingImageDescription) highlightAtChar(event.charIndex);
       break;
   }
 });
@@ -345,6 +534,22 @@ summarizePageButton.addEventListener("click", () => {
   void handleSummarizePage();
 });
 
+findPageImagesButton.addEventListener("click", () => {
+  void handleFindPageImages();
+});
+
+describeImageButton.addEventListener("click", () => {
+  void handleDescribeImage();
+});
+
+readImageDescriptionButton.addEventListener("click", () => {
+  void handleReadImageDescription();
+});
+
+imageSelect.addEventListener("change", () => {
+  updateImageActionButtons();
+});
+
 document.getElementById("play")!.addEventListener("click", async () => {
   if (reader.isPaused()) {
     reader.resume();
@@ -358,7 +563,11 @@ document.getElementById("play")!.addEventListener("click", async () => {
   try {
     const source =
       pendingSource ??
-      (summaryTextEl.textContent?.trim() ? "summary" : "page");
+      (imageDescriptionTextEl.textContent?.trim()
+        ? "imageDescription"
+        : summaryTextEl.textContent?.trim()
+          ? "summary"
+          : "page");
     await startReading(source);
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to start reading");

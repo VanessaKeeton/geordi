@@ -8,7 +8,10 @@ import {
   extractPageContent,
   extractSelectionContent,
 } from "../lib/content/extract";
-import { discoverPageImages } from "../lib/content/page-images";
+import {
+  discoverPageImages,
+  resolveImageDescriptionInput,
+} from "../lib/content/page-images";
 import {
   clearReadingStyles,
   highlightAtCharIndex,
@@ -66,6 +69,38 @@ export default defineContentScript({
               type: "PAGE_IMAGES",
               discovery: discoverPageImages(),
             });
+            return true;
+          }
+
+          if (message.type === "GET_IMAGE_DESCRIPTION_INPUT") {
+            void (async () => {
+              try {
+                const discovery = discoverPageImages();
+                const candidate = discovery.images.find(
+                  (item) => item.id === message.candidateId,
+                );
+                if (!candidate) {
+                  sendResponse({
+                    type: "ERROR",
+                    message: "Selected image was not found on this page.",
+                  });
+                  return;
+                }
+
+                sendResponse({
+                  type: "IMAGE_DESCRIPTION_INPUT",
+                  input: await resolveImageDescriptionInput(document, candidate),
+                });
+              } catch (err) {
+                sendResponse({
+                  type: "ERROR",
+                  message:
+                    err instanceof Error
+                      ? err.message
+                      : "Could not prepare image for description.",
+                });
+              }
+            })();
             return true;
           }
 

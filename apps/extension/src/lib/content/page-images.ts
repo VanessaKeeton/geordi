@@ -329,3 +329,22 @@ export async function resolveImageDescriptionInput(
     imageDataUrl,
   });
 }
+
+/** Accessible label for image picker controls. */
+export function formatPageImageLabel(candidate: PageImageCandidate): string {
+  if (candidate.alt?.trim()) return candidate.alt.trim();
+  if (candidate.caption?.trim()) return candidate.caption.trim();
+
+  const src = candidate.resolvedSrc ?? candidate.src;
+  if (src) {
+    try {
+      const filename = new URL(src).pathname.split("/").pop();
+      if (filename) return filename;
+    } catch {
+      const filename = src.split("/").pop();
+      if (filename) return filename;
+    }
+  }
+
+  return candidate.id.replace(/^img-/, "Image ");
+}

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { JSDOM } from "jsdom";
 import {
   discoverPageImages,
+  formatPageImageLabel,
   toImageDescriptionInput,
   PAGE_IMAGE_MIN_DIMENSION_PX,
 } from "./page-images";
@@ -137,5 +138,27 @@ describe("toImageDescriptionInput", () => {
       imageDataUrl: "data:image/png;base64,abc",
       context: expect.stringContaining("Caption: System overview"),
     });
+  });
+});
+
+describe("formatPageImageLabel", () => {
+  it("prefers alt text", () => {
+    expect(
+      formatPageImageLabel({
+        id: "img-0",
+        status: "discovered",
+        alt: "Quarterly revenue chart",
+      }),
+    ).toBe("Quarterly revenue chart");
+  });
+
+  it("falls back to filename from src", () => {
+    expect(
+      formatPageImageLabel({
+        id: "img-1",
+        status: "discovered",
+        resolvedSrc: "https://example.com/assets/diagram.png",
+      }),
+    ).toBe("diagram.png");
   });
 });

@@ -1,5 +1,6 @@
 /** Message types passed between extension contexts. */
 
+import type { ImageDescriptionInput } from "./ai/types";
 import type { PageContent } from "./content/page-content";
 import type { PageImageDiscoveryResult } from "./content/page-images";
 
@@ -17,9 +18,11 @@ export type GeordiMessage =
   | { type: "GET_PAGE_CONTENT" }
   | { type: "GET_SELECTION_CONTENT" }
   | { type: "GET_PAGE_IMAGES" }
+  | { type: "GET_IMAGE_DESCRIPTION_INPUT"; candidateId: string }
   | { type: "PAGE_READING"; text: string; title: string }
   | { type: "PAGE_CONTENT"; content: PageContent }
   | { type: "PAGE_IMAGES"; discovery: PageImageDiscoveryResult }
+  | { type: "IMAGE_DESCRIPTION_INPUT"; input: ImageDescriptionInput }
   | { type: "SELECTION_READING"; text: string }
   | { type: "SELECTION_CONTENT"; content: PageContent }
   | { type: "HIGHLIGHT_AT_CHAR"; charIndex: number }
@@ -34,7 +37,8 @@ export type GeordiRequestMessage =
   | { type: "GET_SELECTION_READING" }
   | { type: "GET_PAGE_CONTENT" }
   | { type: "GET_SELECTION_CONTENT" }
-  | { type: "GET_PAGE_IMAGES" };
+  | { type: "GET_PAGE_IMAGES" }
+  | { type: "GET_IMAGE_DESCRIPTION_INPUT"; candidateId: string };
 
 /** Messages forwarded from side panel to the active tab. */
 export type GeordiTabMessage =
