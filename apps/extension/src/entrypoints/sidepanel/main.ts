@@ -21,6 +21,7 @@ import {
   prepareSummaryForReading,
   teardownSummaryMarkup,
 } from "./summary-highlight";
+import { getWrappedSpeakableText } from "../../lib/content/wrap-for-reading";
 
 const statusEl = document.getElementById("status")!;
 const summarizeAvailabilityEl = document.getElementById("summarize-availability")!;
@@ -50,6 +51,7 @@ const imageDescriptionResultSection = document.getElementById(
 )!;
 const imageDescriptionLabelEl = document.getElementById("image-description-label")!;
 const imageDescriptionTextEl = document.getElementById("image-description-text")!;
+const imageDescriptionScrollEl = document.getElementById("image-description-scroll")!;
 const voiceSelect = document.getElementById("voice-select") as HTMLSelectElement;
 const speedRange = document.getElementById("speed-range") as HTMLInputElement;
 const speedValue = document.getElementById("speed-value")!;
@@ -74,8 +76,20 @@ function clearSummaryReadingHighlight() {
   clearSummaryHighlight(summaryTextEl);
 }
 
+function clearImageDescriptionReadingHighlight() {
+  clearSummaryHighlight(imageDescriptionTextEl);
+}
+
 function highlightSummaryChar(charIndex: number) {
   highlightSummaryAtChar(summaryTextEl, charIndex, summaryScrollEl);
+}
+
+function highlightImageDescriptionChar(charIndex: number) {
+  highlightSummaryAtChar(
+    imageDescriptionTextEl,
+    charIndex,
+    imageDescriptionScrollEl,
+  );
 }
 
 function isPageReadingSource(): boolean {
@@ -85,6 +99,19 @@ function isPageReadingSource(): boolean {
 async function speakSummary(text: string, style: SummaryStyle): Promise<void> {
   const speakable = prepareSummaryForReading(summaryTextEl, text, style);
   summaryResultSection.hidden = false;
+  await reader.speakText(speakable);
+}
+
+async function speakImageDescription(text: string): Promise<void> {
+  let speakable = getWrappedSpeakableText(imageDescriptionTextEl);
+  if (!speakable) {
+    speakable = prepareSummaryForReading(
+      imageDescriptionTextEl,
+      text,
+      "paragraph",
+    );
+  }
+  imageDescriptionResultSection.hidden = false;
   await reader.speakText(speakable);
 }
 
@@ -112,6 +139,19 @@ function teardownReading() {
   sendToActiveTab({ type: "TEARDOWN_READING" });
 }
 
+function highlightSelectedPageImage(): void {
+  const candidateId = imageSelect.value;
+  if (candidateId) {
+    sendToActiveTab({ type: "HIGHLIGHT_PAGE_IMAGE", candidateId });
+  } else {
+    sendToActiveTab({ type: "CLEAR_PAGE_IMAGE" });
+  }
+}
+
+function clearPageImageHighlightOnPage(): void {
+  sendToActiveTab({ type: "CLEAR_PAGE_IMAGE" });
+}
+
 function resetReaderOnNavigation() {
   const wasPageReading =
     isPageReadingSource() && (reader.isActive() || reader.isPaused());
@@ -135,6 +175,7 @@ function resetReaderOnNavigation() {
     clearHighlight();
     teardownReading();
   }
+  clearPageImageHighlightOnPage();
   setStatus("Page changed.");
 }
 
@@ -170,9 +211,15 @@ async function startReading(source: ReadingSource): Promise<void> {
   pendingText = text;
   pendingSource = source;
 
+  if (source === "page" || source === "selection") {
+    clearPageImageHighlightOnPage();
+  }
+
   if (source === "summary") {
     const style = summaryFormatSelect.value as SummaryStyle;
     await speakSummary(text, style);
+  } else if (source === "imageDescription") {
+    await speakImageDescription(text);
   } else {
     await reader.speakText(pendingText);
   }
@@ -305,6 +352,7 @@ function populateImageSelect(images: PageImageCandidate[]): void {
 }
 
 function hideImageDescriptionResult(): void {
+  teardownSummaryMarkup(imageDescriptionTextEl);
   imageDescriptionResultSection.hidden = true;
   imageDescriptionLabelEl.textContent = "";
   imageDescriptionTextEl.textContent = "";
@@ -313,7 +361,7 @@ function hideImageDescriptionResult(): void {
 
 function showImageDescriptionResult(label: string, description: string): void {
   imageDescriptionLabelEl.textContent = label;
-  imageDescriptionTextEl.textContent = description;
+  prepareSummaryForReading(imageDescriptionTextEl, description, "paragraph");
   imageDescriptionResultSection.hidden = false;
   updateImageActionButtons();
 }
@@ -334,6 +382,7 @@ async function refreshImagesUi(): Promise<void> {
 
 async function handleFindPageImages(): Promise<void> {
   hideImageDescriptionResult();
+  clearPageImageHighlightOnPage();
   discoveredImages = [];
   imageSelect.value = "";
 
@@ -349,6 +398,7 @@ async function handleFindPageImages(): Promise<void> {
 
     imageSelect.value = discoveredImages[0]?.id ?? "";
     updateImageActionButtons();
+    highlightSelectedPageImage();
     setStatus(
       `Found ${discoveredImages.length} image${discoveredImages.length === 1 ? "" : "s"}.`,
     );
@@ -376,7 +426,11 @@ async function handleDescribeImage(): Promise<void> {
   if (isSummaryReadingSource()) {
     clearSummaryReadingHighlight();
   }
+  if (isImageDescriptionReadingSource()) {
+    clearImageDescriptionReadingHighlight();
+  }
   hideImageDescriptionResult();
+  highlightSelectedPageImage();
 
   try {
     const { description, label } = await describeActivePageImage({
@@ -388,7 +442,7 @@ async function handleDescribeImage(): Promise<void> {
     pendingText = description;
     pendingSource = "imageDescription";
     setStatus("Reading image description…");
-    await reader.speakText(description);
+    await speakImageDescription(description);
     await refreshImagesUi();
   } catch (err) {
     setStatus(err instanceof Error ? err.message : "Failed to describe image");
@@ -478,7 +532,8 @@ reader.on((event) => {
     case "pause":
       setStatus("Paused.");
       if (readingSummary) clearSummaryReadingHighlight();
-      else if (!readingImageDescription) clearHighlight();
+      else if (readingImageDescription) clearImageDescriptionReadingHighlight();
+      else clearHighlight();
       break;
     case "resume":
       setStatus(
@@ -498,7 +553,8 @@ reader.on((event) => {
             : "Finished.",
       );
       if (readingSummary) clearSummaryReadingHighlight();
-      else if (!readingImageDescription) {
+      else if (readingImageDescription) clearImageDescriptionReadingHighlight();
+      else {
         clearHighlight();
         teardownReading();
       }
@@ -508,7 +564,9 @@ reader.on((event) => {
       break;
     case "word":
       if (readingSummary) highlightSummaryChar(event.charIndex);
-      else if (!readingImageDescription) highlightAtChar(event.charIndex);
+      else if (readingImageDescription) {
+        highlightImageDescriptionChar(event.charIndex);
+      } else highlightAtChar(event.charIndex);
       break;
   }
 });
@@ -548,6 +606,7 @@ readImageDescriptionButton.addEventListener("click", () => {
 
 imageSelect.addEventListener("change", () => {
   updateImageActionButtons();
+  highlightSelectedPageImage();
 });
 
 document.getElementById("play")!.addEventListener("click", async () => {

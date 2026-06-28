@@ -13,10 +13,7 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 /** Fetch bytes for a page-discovered image URL (extension background; bypasses page CSP). */
-async function fetchSameOriginImageInBackground(
-  imageUrl: string,
-  _pageUrl: string,
-): Promise<string> {
+export async function fetchPageImageInBackground(imageUrl: string): Promise<string> {
   if (!isPageImageUrl(imageUrl)) {
     throw new Error("This image URL cannot be fetched.");
   }
@@ -35,5 +32,3 @@ async function fetchSameOriginImageInBackground(
 
   return blobToDataUrl(blob);
 }
-
-export { fetchSameOriginImageInBackground };

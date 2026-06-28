@@ -8,12 +8,12 @@ import {
   extractPageContent,
   extractSelectionContent,
 } from "../lib/content/extract";
-import {
-  discoverPageImages,
-  prepareImageDescriptionInput,
-  resolvePageImageCandidate,
-} from "../lib/content/page-images";
+import { discoverPageImages } from "../lib/content/page-images";
 import { describePageImageInTab } from "../lib/content/describe-page-image-in-tab";
+import {
+  clearPageImageHighlight,
+  highlightPageImage,
+} from "../lib/content/highlight-page-image";
 import {
   clearReadingStyles,
   highlightAtCharIndex,
@@ -100,38 +100,6 @@ export default defineContentScript({
             return true;
           }
 
-          if (message.type === "GET_IMAGE_DESCRIPTION_INPUT") {
-            void (async () => {
-              try {
-                const candidate = resolvePageImageCandidate(
-                  document,
-                  message.candidateId,
-                );
-                if (!candidate) {
-                  sendResponse({
-                    type: "ERROR",
-                    message: "Selected image was not found on this page.",
-                  });
-                  return;
-                }
-
-                sendResponse({
-                  type: "IMAGE_DESCRIPTION_INPUT",
-                  input: await prepareImageDescriptionInput(document, candidate),
-                });
-              } catch (err) {
-                sendResponse({
-                  type: "ERROR",
-                  message:
-                    err instanceof Error
-                      ? err.message
-                      : "Could not prepare image for description.",
-                });
-              }
-            })();
-            return true;
-          }
-
           if (message.type === "HIGHLIGHT_AT_CHAR") {
             const doc = getWrappedReadingDocument();
             if (doc) {
@@ -148,7 +116,18 @@ export default defineContentScript({
             return false;
           }
 
+          if (message.type === "HIGHLIGHT_PAGE_IMAGE") {
+            highlightPageImage(document, message.candidateId);
+            return false;
+          }
+
+          if (message.type === "CLEAR_PAGE_IMAGE") {
+            clearPageImageHighlight();
+            return false;
+          }
+
           if (message.type === "TEARDOWN_READING") {
+            clearPageImageHighlight();
             clearWrappedReading();
             return false;
           }

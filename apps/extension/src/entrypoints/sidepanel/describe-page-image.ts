@@ -79,7 +79,7 @@ export async function discoverImagesOnActivePage(
 export async function describeActivePageImage(
   options: DescribePageImageOptions,
 ): Promise<DescribePageImageResult> {
-  options.onStatus("Preparing image…");
+  options.onStatus("Preparing and describing image…");
 
   const response = await options.requestFromActiveTab({
     type: "DESCRIBE_PAGE_IMAGE",
@@ -92,8 +92,6 @@ export async function describeActivePageImage(
   if (response.type !== "IMAGE_DESCRIPTION_RESULT") {
     throw new Error("Unexpected response from content script");
   }
-
-  options.onStatus("Describing image…");
 
   return {
     description: response.description,

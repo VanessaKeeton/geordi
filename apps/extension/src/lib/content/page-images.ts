@@ -279,20 +279,6 @@ export function resolvePageImageCandidate(
   return classifyImage(element, doc, Number(match[1]));
 }
 
-function resolveImageUrl(
-  img: HTMLImageElement,
-  doc: Document,
-): string | undefined {
-  const raw = img.currentSrc || img.src || img.getAttribute("src") || undefined;
-  if (!raw?.trim()) return undefined;
-
-  try {
-    return new URL(raw, doc.location?.href ?? undefined).href;
-  } catch {
-    return raw;
-  }
-}
-
 const IMAGE_CAPTURE_MAX_DIMENSION_PX = 1536;
 const IMAGE_CAPTURE_JPEG_QUALITY = 0.85;
 
@@ -392,20 +378,18 @@ export async function fetchSameOriginImageAsDataUrl(
 }
 
 /** Fetch page image bytes via the extension background worker (bypasses page CSP). */
-export async function fetchSameOriginImageViaBackground(
+export async function fetchPageImageViaBackground(
   imageUrl: string,
-  pageUrl: string,
 ): Promise<string | undefined> {
-  if (!pageUrl || !isPageImageUrl(imageUrl)) return undefined;
+  if (!isPageImageUrl(imageUrl)) return undefined;
 
   try {
     const response = await chrome.runtime.sendMessage({
-      type: "FETCH_SAME_ORIGIN_IMAGE",
+      type: "FETCH_PAGE_IMAGE",
       imageUrl,
-      pageUrl,
     });
 
-    if (response?.type === "SAME_ORIGIN_IMAGE_DATA") {
+    if (response?.type === "PAGE_IMAGE_DATA") {
       return response.imageDataUrl;
     }
   } catch {
@@ -453,15 +437,14 @@ async function captureImageBytes(
   element: HTMLImageElement | undefined,
   resolvedSrc: string | undefined,
 ): Promise<string | undefined> {
-  const pageUrl = doc.location?.href;
   let imageDataUrl = element ? await captureImageDataUrl(element) : undefined;
 
   if (!imageDataUrl && resolvedSrc) {
     imageDataUrl = await fetchSameOriginImageAsDataUrl(resolvedSrc, doc);
   }
 
-  if (!imageDataUrl && resolvedSrc && pageUrl) {
-    imageDataUrl = await fetchSameOriginImageViaBackground(resolvedSrc, pageUrl);
+  if (!imageDataUrl && resolvedSrc) {
+    imageDataUrl = await fetchPageImageViaBackground(resolvedSrc);
   }
 
   if (imageDataUrl) {
@@ -471,12 +454,12 @@ async function captureImageBytes(
   return imageDataUrl;
 }
 
-/** Capture same-origin / CORS-safe image bytes as a data URL for providers. */
+/** Capture image bytes as a data URL: canvas first, then same-origin fetch, then background. */
 export async function captureImageDataUrl(
   img: HTMLImageElement,
 ): Promise<string | undefined> {
   const doc = img.ownerDocument;
-  const url = resolveImageUrl(img, doc);
+  const url = resolveImageSrc(img, doc);
 
   if (url?.startsWith("data:")) return url;
 
@@ -547,14 +530,6 @@ export async function prepareImageDescriptionInput(
     imageDataUrl,
     imageElement: imageDataUrl ? undefined : resolvedElement,
   });
-}
-
-/** @deprecated Use prepareImageDescriptionInput() for live DOM + byte capture. */
-export async function resolveImageDescriptionInput(
-  doc: Document,
-  candidate: PageImageCandidate,
-): Promise<ImageDescriptionInput> {
-  return prepareImageDescriptionInput(doc, candidate);
 }
 
 /** Accessible label for image picker controls. */

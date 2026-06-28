@@ -1,5 +1,5 @@
 import type { GeordiMessage, GeordiTabMessage } from "../lib/messages";
-import { fetchSameOriginImageInBackground } from "../lib/content/fetch-same-origin-image";
+import { fetchPageImageInBackground } from "../lib/content/fetch-page-image";
 
 const TAB_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_PAGE_READING",
@@ -8,9 +8,10 @@ const TAB_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_SELECTION_CONTENT",
   "GET_PAGE_IMAGES",
   "DESCRIBE_PAGE_IMAGE",
-  "GET_IMAGE_DESCRIPTION_INPUT",
   "HIGHLIGHT_AT_CHAR",
   "CLEAR_HIGHLIGHT",
+  "HIGHLIGHT_PAGE_IMAGE",
+  "CLEAR_PAGE_IMAGE",
   "TEARDOWN_READING",
 ]);
 
@@ -21,11 +22,13 @@ const REQUEST_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_SELECTION_CONTENT",
   "GET_PAGE_IMAGES",
   "DESCRIBE_PAGE_IMAGE",
-  "GET_IMAGE_DESCRIPTION_INPUT",
 ]);
 
 /** Tab that initiated the current reading session (highlights must target this tab). */
 let readingTabId: number | null = null;
+
+/** Tab where page images were last discovered or described. */
+let pageImagesTabId: number | null = null;
 
 /** Last tab the user focused in a normal browser window (side panel / devtools fallback). */
 let lastFocusedTabId: number | null = null;
@@ -58,7 +61,7 @@ async function getActiveTabId(): Promise<number | undefined> {
   });
   if (lastFocused?.id !== undefined) return lastFocused.id;
 
-  return lastFocusedTabId ?? readingTabId ?? undefined;
+  return lastFocusedTabId ?? pageImagesTabId ?? readingTabId ?? undefined;
 }
 
 export default defineBackground(() => {
@@ -82,6 +85,9 @@ export default defineBackground(() => {
     if (tab.active) rememberFocusedTab(tabId, tab.url ?? changeInfo.url);
     if (changeInfo.status === "loading" || changeInfo.url) {
       resetReadingOnTabNavigation(tabId);
+      if (pageImagesTabId === tabId) {
+        pageImagesTabId = null;
+      }
     }
   });
 
@@ -91,21 +97,18 @@ export default defineBackground(() => {
       sender,
       sendResponse: (response: GeordiMessage) => void,
     ) => {
-      if (message.type === "FETCH_SAME_ORIGIN_IMAGE") {
+      if (message.type === "FETCH_PAGE_IMAGE") {
         void (async () => {
           try {
-            const imageDataUrl = await fetchSameOriginImageInBackground(
-              message.imageUrl,
-              message.pageUrl,
-            );
-            sendResponse({ type: "SAME_ORIGIN_IMAGE_DATA", imageDataUrl });
+            const imageDataUrl = await fetchPageImageInBackground(message.imageUrl);
+            sendResponse({ type: "PAGE_IMAGE_DATA", imageDataUrl });
           } catch (error) {
             sendResponse({
               type: "ERROR",
               message:
                 error instanceof Error
                   ? error.message
-                  : "Could not fetch same-origin image.",
+                  : "Could not fetch page image.",
             });
           }
         })();
@@ -122,9 +125,12 @@ export default defineBackground(() => {
         }
 
         if (!REQUEST_MESSAGES.has(message.type as GeordiTabMessage["type"])) {
-          const targetTabId = readingTabId ?? (await getActiveTabId());
+          const targetTabId =
+            pageImagesTabId ?? readingTabId ?? (await getActiveTabId());
           if (!targetTabId) return;
-          chrome.tabs.sendMessage(targetTabId, message);
+          chrome.tabs.sendMessage(targetTabId, message, () => {
+            void chrome.runtime.lastError;
+          });
           return;
         }
 
@@ -132,6 +138,13 @@ export default defineBackground(() => {
         if (!tabId) {
           sendResponse({ type: "ERROR", message: "No active tab" });
           return;
+        }
+
+        if (
+          message.type === "GET_PAGE_IMAGES" ||
+          message.type === "DESCRIBE_PAGE_IMAGE"
+        ) {
+          pageImagesTabId = tabId;
         }
 
         chrome.tabs.sendMessage(tabId, message, (response: GeordiMessage) => {
