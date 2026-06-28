@@ -63,6 +63,29 @@ let pendingText = "";
 let pendingSource: ReadingSource | null = null;
 let readingStartToken = 0;
 let discoveredImages: PageImageCandidate[] = [];
+let pageImagesDiscoveryTabId: number | null = null;
+
+async function getActiveBrowserTabId(): Promise<number | undefined> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.id;
+}
+
+function invalidateDiscoveredPageImages(statusMessage?: string): void {
+  if (discoveredImages.length === 0 && pageImagesDiscoveryTabId === null) {
+    return;
+  }
+
+  discoveredImages = [];
+  pageImagesDiscoveryTabId = null;
+  imageSelect.value = "";
+  imagePickerFieldset.hidden = true;
+  hideImageDescriptionResult();
+  clearPageImageHighlightOnPage();
+  updateImageActionButtons();
+  if (statusMessage) {
+    setStatus(statusMessage);
+  }
+}
 
 function isSummaryReadingSource(): boolean {
   return pendingSource === "summary";
@@ -384,11 +407,14 @@ async function handleFindPageImages(): Promise<void> {
   hideImageDescriptionResult();
   clearPageImageHighlightOnPage();
   discoveredImages = [];
+  pageImagesDiscoveryTabId = null;
   imageSelect.value = "";
 
   try {
     setStatus("Finding images on page…");
+    const tabId = await getActiveBrowserTabId();
     discoveredImages = await discoverImagesOnActivePage(requestFromActiveTab);
+    pageImagesDiscoveryTabId = tabId ?? null;
     populateImageSelect(discoveredImages);
 
     if (discoveredImages.length === 0) {
@@ -404,6 +430,7 @@ async function handleFindPageImages(): Promise<void> {
     );
     await refreshImagesUi();
   } catch (err) {
+    pageImagesDiscoveryTabId = null;
     imagePickerFieldset.hidden = true;
     setStatus(err instanceof Error ? err.message : "Failed to find images");
     await refreshImagesUi();
@@ -414,6 +441,18 @@ async function handleDescribeImage(): Promise<void> {
   const candidateId = imageSelect.value;
   if (!candidateId) {
     setStatus("Select an image first.");
+    return;
+  }
+
+  const activeTabId = await getActiveBrowserTabId();
+  if (
+    pageImagesDiscoveryTabId !== null &&
+    activeTabId !== undefined &&
+    activeTabId !== pageImagesDiscoveryTabId
+  ) {
+    invalidateDiscoveredPageImages(
+      "Switched tabs. Find images again on this page.",
+    );
     return;
   }
 
@@ -513,6 +552,24 @@ chrome.runtime.onMessage.addListener((message: GeordiMessage) => {
     resetReaderOnNavigation();
   }
   return false;
+});
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  if (pageImagesDiscoveryTabId !== null && tabId !== pageImagesDiscoveryTabId) {
+    invalidateDiscoveredPageImages(
+      "Switched tabs. Find images again on this page.",
+    );
+  }
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (
+    pageImagesDiscoveryTabId !== null &&
+    tabId === pageImagesDiscoveryTabId &&
+    (changeInfo.status === "loading" || changeInfo.url)
+  ) {
+    invalidateDiscoveredPageImages("Page changed. Find images again.");
+  }
 });
 
 reader.on((event) => {
