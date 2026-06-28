@@ -63,8 +63,12 @@ export interface ImageDescriptionInput {
   surroundingText?: string;
   /** Page URL where the image was discovered. */
   pageUrl?: string;
+  /** BCP 47 language tag for description output (defaults to English). */
+  outputLanguage?: string;
   /** Same-origin image bytes as a data URL — never fetched over the network. */
   imageDataUrl?: string;
+  /** Live `<img>` in the page — content script only; never sent via messaging. */
+  imageElement?: HTMLImageElement;
   /** Optional combined caption / heading / surrounding text for providers. */
   context?: string;
 }

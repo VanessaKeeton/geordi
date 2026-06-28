@@ -2,6 +2,7 @@ import { availability, isUsable } from "../../availability";
 import {
   buildImageDescriptionPrompt,
   dataUrlToBlob,
+  inaccessibleImageDataMessage,
   validateImageDescriptionInput,
 } from "../../image-description-input";
 import type { ImageDescriptionProvider } from "../../contracts";
@@ -15,11 +16,45 @@ import {
   mapChromeAvailability,
   type ChromeLanguageModelCreateOptions,
 } from "./detect";
+import { resolveChromePromptOutputLanguage } from "./summarizer-limits";
+import { isSameOriginImageResource } from "../../../content/image-origin";
 
-const IMAGE_MODEL_OPTIONS: ChromeLanguageModelCreateOptions = {
-  expectedInputs: [{ type: "text" }, { type: "image" }],
-  expectedOutputs: [{ type: "text" }],
-};
+function buildImageModelOptions(
+  outputLanguage?: string,
+): ChromeLanguageModelCreateOptions {
+  const lang = resolveChromePromptOutputLanguage(outputLanguage);
+  return {
+    expectedInputs: [{ type: "text", languages: [lang] }, { type: "image" }],
+    expectedOutputs: [{ type: "text", languages: [lang] }],
+  };
+}
+
+function resolvePromptImageValue(
+  input: ImageDescriptionInput,
+): string | Blob | HTMLImageElement | undefined {
+  const imageDataUrl = input.imageDataUrl?.trim();
+  if (imageDataUrl) return dataUrlToBlob(imageDataUrl);
+
+  if (input.imageElement?.tagName?.toLowerCase() === "img") {
+    const src = input.src?.trim();
+    const pageUrl = input.pageUrl?.trim();
+    if (!src || !pageUrl || isSameOriginImageResource(src, pageUrl)) {
+      return input.imageElement;
+    }
+  }
+
+  return undefined;
+}
+
+function formatChromeImageError(error: unknown): string {
+  if (error instanceof Error) {
+    if (/taint/i.test(error.message)) {
+      return "Geordi could not read this image from the page. Try again after the image finishes loading.";
+    }
+    return error.message;
+  }
+  return "Chrome image description failed.";
+}
 
 /**
  * Chrome Prompt API adapter for on-device multimodal image description.
@@ -57,19 +92,19 @@ export class ChromeImageDescriptionProvider implements ImageDescriptionProvider 
       };
     }
 
-    const imageDataUrl = input.imageDataUrl?.trim();
-    if (!imageDataUrl) {
+    const imageValue = resolvePromptImageValue(input);
+    if (!imageValue) {
       const current = await this.probeAvailability();
       return {
         ok: false,
         availability: current,
-        message:
-          "Image pixels could not be read locally. Cross-origin images stay private and are not fetched over the network.",
+        message: inaccessibleImageDataMessage(input),
       };
     }
 
     try {
-      const chromeState = await languageModel.availability(IMAGE_MODEL_OPTIONS);
+      const modelOptions = buildImageModelOptions(input.outputLanguage);
+      const chromeState = await languageModel.availability(modelOptions);
       const mapped = mapChromeAvailability(this.id, chromeState);
       const current = availability(this.id, mapped.state, mapped.message);
 
@@ -83,7 +118,7 @@ export class ChromeImageDescriptionProvider implements ImageDescriptionProvider 
         };
       }
 
-      const session = await languageModel.create(IMAGE_MODEL_OPTIONS);
+      const session = await languageModel.create(modelOptions);
       try {
         const description = await session.prompt([
           {
@@ -95,7 +130,7 @@ export class ChromeImageDescriptionProvider implements ImageDescriptionProvider 
               },
               {
                 type: "image",
-                value: dataUrlToBlob(imageDataUrl),
+                value: imageValue,
               },
             ],
           },
@@ -115,19 +150,18 @@ export class ChromeImageDescriptionProvider implements ImageDescriptionProvider 
         await session.destroy?.();
       }
     } catch (error) {
-      const current = await this.probeAvailability();
+      const current = await this.probeAvailability(input.outputLanguage);
       return {
         ok: false,
         availability: current,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Chrome image description failed.",
+        message: formatChromeImageError(error),
       };
     }
   }
 
-  private async probeAvailability(): Promise<ProviderAvailability> {
+  private async probeAvailability(
+    outputLanguage?: string,
+  ): Promise<ProviderAvailability> {
     const { LanguageModel: languageModel } = getChromeAiGlobals();
     if (!languageModel?.availability) {
       return availability(
@@ -138,7 +172,9 @@ export class ChromeImageDescriptionProvider implements ImageDescriptionProvider 
     }
 
     try {
-      const chromeState = await languageModel.availability(IMAGE_MODEL_OPTIONS);
+      const chromeState = await languageModel.availability(
+        buildImageModelOptions(outputLanguage),
+      );
       const mapped = mapChromeAvailability(this.id, chromeState);
       return availability(this.id, mapped.state, mapped.message);
     } catch {

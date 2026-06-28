@@ -31,13 +31,14 @@ describe("ChromeImageDescriptionProvider", () => {
 
     const provider = new ChromeImageDescriptionProvider();
     const result = await provider.describeImage({
-      src: "https://cdn.example.com/chart.png",
+      src: "https://cdn.example.net/chart.png",
+      pageUrl: "https://www.example.com/page",
       alt: "Chart",
     });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.message).toContain("Cross-origin");
+      expect(result.message).toContain("could not read");
     }
   });
 
@@ -67,9 +68,10 @@ describe("ChromeImageDescriptionProvider", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedInputs: expect.arrayContaining([
-          { type: "text" },
+          { type: "text", languages: ["en"] },
           { type: "image" },
         ]),
+        expectedOutputs: [{ type: "text", languages: ["en"] }],
       }),
     );
     expect(prompt).toHaveBeenCalledWith([
@@ -81,6 +83,86 @@ describe("ChromeImageDescriptionProvider", () => {
         ]),
       }),
     ]);
+  });
+
+  it("prefers captured bytes over a live img element", async () => {
+    const prompt = vi.fn(async () => "A photo of mountains.");
+    (globalThis as ChromeAiGlobals).LanguageModel = {
+      availability: async () => "available",
+      create: async () => ({
+        prompt,
+        destroy: async () => undefined,
+      }),
+    };
+
+    const imageElement = { tagName: "IMG" } as HTMLImageElement;
+    const provider = new ChromeImageDescriptionProvider();
+    const result = await provider.describeImage({
+      imageDataUrl: SAMPLE_DATA_URL,
+      alt: "Mountains",
+      imageElement,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(prompt).toHaveBeenCalledWith([
+      expect.objectContaining({
+        content: expect.arrayContaining([
+          expect.objectContaining({
+            type: "image",
+            value: expect.any(Blob),
+          }),
+        ]),
+      }),
+    ]);
+  });
+
+  it("accepts a live img element without a data URL", async () => {
+    const prompt = vi.fn(async () => "A diagram of connected services.");
+    (globalThis as ChromeAiGlobals).LanguageModel = {
+      availability: async () => "available",
+      create: async () => ({
+        prompt,
+        destroy: async () => undefined,
+      }),
+    };
+
+    const imageElement = { tagName: "IMG" } as HTMLImageElement;
+    const provider = new ChromeImageDescriptionProvider();
+    const result = await provider.describeImage({
+      alt: "Architecture diagram",
+      imageElement,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(prompt).toHaveBeenCalledWith([
+      expect.objectContaining({
+        content: expect.arrayContaining([
+          expect.objectContaining({ type: "image", value: imageElement }),
+        ]),
+      }),
+    ]);
+  });
+
+  it("returns a clearer message when Chrome reports taint errors", async () => {
+    (globalThis as ChromeAiGlobals).LanguageModel = {
+      availability: async () => "available",
+      create: async () => ({
+        prompt: async () => {
+          throw new Error("Source would taint origin.");
+        },
+      }),
+    };
+
+    const provider = new ChromeImageDescriptionProvider();
+    const result = await provider.describeImage({
+      imageDataUrl: SAMPLE_DATA_URL,
+      alt: "Diagram",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toContain("could not read");
+    }
   });
 
   it("returns structured failure when prompt throws", async () => {
@@ -119,7 +201,11 @@ describe("ChromeImageDescriptionProvider", () => {
     expect(state.state).toBe("downloadable");
     expect(availability).toHaveBeenCalledWith(
       expect.objectContaining({
-        expectedInputs: expect.arrayContaining([{ type: "image" }]),
+        expectedInputs: expect.arrayContaining([
+          { type: "text", languages: ["en"] },
+          { type: "image" },
+        ]),
+        expectedOutputs: [{ type: "text", languages: ["en"] }],
       }),
     );
   });

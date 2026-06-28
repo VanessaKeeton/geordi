@@ -10,8 +10,10 @@ import {
 } from "../lib/content/extract";
 import {
   discoverPageImages,
-  resolveImageDescriptionInput,
+  prepareImageDescriptionInput,
+  resolvePageImageCandidate,
 } from "../lib/content/page-images";
+import { describePageImageInTab } from "../lib/content/describe-page-image-in-tab";
 import {
   clearReadingStyles,
   highlightAtCharIndex,
@@ -72,12 +74,38 @@ export default defineContentScript({
             return true;
           }
 
+          if (message.type === "DESCRIBE_PAGE_IMAGE") {
+            void (async () => {
+              try {
+                const result = await describePageImageInTab(
+                  document,
+                  message.candidateId,
+                );
+                sendResponse({
+                  type: "IMAGE_DESCRIPTION_RESULT",
+                  description: result.description,
+                  label: result.label,
+                  providerId: result.providerId,
+                });
+              } catch (err) {
+                sendResponse({
+                  type: "ERROR",
+                  message:
+                    err instanceof Error
+                      ? err.message
+                      : "Could not describe this image.",
+                });
+              }
+            })();
+            return true;
+          }
+
           if (message.type === "GET_IMAGE_DESCRIPTION_INPUT") {
             void (async () => {
               try {
-                const discovery = discoverPageImages();
-                const candidate = discovery.images.find(
-                  (item) => item.id === message.candidateId,
+                const candidate = resolvePageImageCandidate(
+                  document,
+                  message.candidateId,
                 );
                 if (!candidate) {
                   sendResponse({
@@ -89,7 +117,7 @@ export default defineContentScript({
 
                 sendResponse({
                   type: "IMAGE_DESCRIPTION_INPUT",
-                  input: await resolveImageDescriptionInput(document, candidate),
+                  input: await prepareImageDescriptionInput(document, candidate),
                 });
               } catch (err) {
                 sendResponse({

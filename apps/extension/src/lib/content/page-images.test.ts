@@ -1,8 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { JSDOM } from "jsdom";
 import {
   discoverPageImages,
+  fetchSameOriginImageAsDataUrl,
   formatPageImageLabel,
+  isPageImageUrl,
+  isSameOriginImageResource,
+  resolvePageImageCandidate,
   toImageDescriptionInput,
   PAGE_IMAGE_MIN_DIMENSION_PX,
 } from "./page-images";
@@ -111,6 +115,44 @@ describe("discoverPageImages", () => {
   });
 });
 
+describe("resolvePageImageCandidate", () => {
+  it("finds a candidate by DOM index even when filters changed", () => {
+    const doc = dom(`
+      <body>
+        <main>
+          <img src="/icon.png" alt="" data-width="16" data-height="16" />
+          <img src="/hero.png" alt="Product photo" data-width="600" data-height="400" />
+        </main>
+      </body>
+    `);
+
+    const firstPass = discoverPageImages(doc);
+    expect(firstPass.images).toHaveLength(1);
+    expect(firstPass.images[0]?.id).toBe("img-1");
+
+    const hero = doc.querySelector('img[alt="Product photo"]') as HTMLImageElement;
+    hero.setAttribute("data-width", "20");
+    hero.setAttribute("data-height", "20");
+
+    const secondPass = discoverPageImages(doc);
+    expect(secondPass.images.find((item) => item.id === "img-1")).toBeUndefined();
+
+    const resolved = resolvePageImageCandidate(doc, "img-1");
+    expect(resolved).toMatchObject({
+      id: "img-1",
+      alt: "Product photo",
+      skipReason: "too_small",
+    });
+  });
+
+  it("returns undefined when the DOM index no longer exists", () => {
+    const doc = dom(`
+      <body><main><img src="/hero.png" alt="Photo" data-width="600" data-height="400" /></main></body>
+    `);
+    expect(resolvePageImageCandidate(doc, "img-99")).toBeUndefined();
+  });
+});
+
 describe("toImageDescriptionInput", () => {
   it("maps candidate fields into provider input", () => {
     const input = toImageDescriptionInput(
@@ -160,5 +202,67 @@ describe("formatPageImageLabel", () => {
         resolvedSrc: "https://example.com/assets/diagram.png",
       }),
     ).toBe("diagram.png");
+  });
+});
+
+describe("isSameOriginImageResource", () => {
+  it("treats data URLs as local", () => {
+    expect(
+      isSameOriginImageResource(
+        "data:image/png;base64,abc",
+        "https://example.com/page",
+      ),
+    ).toBe(true);
+  });
+
+  it("matches page origin only", () => {
+    expect(
+      isSameOriginImageResource(
+        "https://example.com/chart.png",
+        "https://example.com/page",
+      ),
+    ).toBe(true);
+    expect(
+      isSameOriginImageResource(
+        "https://cdn.example.com/chart.png",
+        "https://example.com/page",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("isPageImageUrl", () => {
+  it("accepts third-party CDN URLs shown on the page", () => {
+    expect(
+      isPageImageUrl("https://m.media-amazon.com/images/I/51.jpg"),
+    ).toBe(true);
+  });
+});
+
+describe("fetchSameOriginImageAsDataUrl", () => {
+  it("returns data URLs unchanged", async () => {
+    const doc = dom("<body></body>");
+    await expect(
+      fetchSameOriginImageAsDataUrl("data:image/png;base64,abc", doc),
+    ).resolves.toBe("data:image/png;base64,abc");
+  });
+
+  it("fetches same-origin image bytes", async () => {
+    const doc = dom("<body></body>");
+    const blob = new Blob(["pixels"], { type: "image/png" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        blob: async () => blob,
+      })),
+    );
+
+    const dataUrl = await fetchSameOriginImageAsDataUrl(
+      "https://example.com/chart.png",
+      doc,
+    );
+    expect(dataUrl).toMatch(/^data:image\/png;base64,/);
+    vi.unstubAllGlobals();
   });
 });

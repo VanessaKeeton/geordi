@@ -1,4 +1,5 @@
 import type { GeordiMessage, GeordiTabMessage } from "../lib/messages";
+import { fetchSameOriginImageInBackground } from "../lib/content/fetch-same-origin-image";
 
 const TAB_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_PAGE_READING",
@@ -6,6 +7,7 @@ const TAB_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_PAGE_CONTENT",
   "GET_SELECTION_CONTENT",
   "GET_PAGE_IMAGES",
+  "DESCRIBE_PAGE_IMAGE",
   "GET_IMAGE_DESCRIPTION_INPUT",
   "HIGHLIGHT_AT_CHAR",
   "CLEAR_HIGHLIGHT",
@@ -18,6 +20,7 @@ const REQUEST_MESSAGES = new Set<GeordiTabMessage["type"]>([
   "GET_PAGE_CONTENT",
   "GET_SELECTION_CONTENT",
   "GET_PAGE_IMAGES",
+  "DESCRIBE_PAGE_IMAGE",
   "GET_IMAGE_DESCRIPTION_INPUT",
 ]);
 
@@ -88,6 +91,27 @@ export default defineBackground(() => {
       sender,
       sendResponse: (response: GeordiMessage) => void,
     ) => {
+      if (message.type === "FETCH_SAME_ORIGIN_IMAGE") {
+        void (async () => {
+          try {
+            const imageDataUrl = await fetchSameOriginImageInBackground(
+              message.imageUrl,
+              message.pageUrl,
+            );
+            sendResponse({ type: "SAME_ORIGIN_IMAGE_DATA", imageDataUrl });
+          } catch (error) {
+            sendResponse({
+              type: "ERROR",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Could not fetch same-origin image.",
+            });
+          }
+        })();
+        return true;
+      }
+
       if (!TAB_MESSAGES.has(message.type as GeordiTabMessage["type"])) {
         return false;
       }

@@ -57,7 +57,7 @@ export interface ChromeSummarizerApi {
 
 export interface ChromePromptContentPart {
   type: "text" | "image";
-  value: string | Blob;
+  value: string | Blob | HTMLImageElement;
 }
 
 export interface ChromePromptMessage {

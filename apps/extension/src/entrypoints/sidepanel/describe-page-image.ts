@@ -1,5 +1,5 @@
-import { createProviderRegistry } from "../../lib/ai/create-registry";
 import { isUsable } from "../../lib/ai/availability";
+import { createProviderRegistry } from "../../lib/ai/create-registry";
 import type { GeordiMessage } from "../../lib/messages";
 import type { PageImageCandidate } from "../../lib/content/page-images";
 
@@ -75,46 +75,29 @@ export async function discoverImagesOnActivePage(
   return response.discovery.images;
 }
 
-/** Resolve image input and describe it with the best local provider. */
+/** Describe an image in the active tab (capture + on-device AI run in content script). */
 export async function describeActivePageImage(
   options: DescribePageImageOptions,
 ): Promise<DescribePageImageResult> {
   options.onStatus("Preparing image…");
 
-  const inputResponse = await options.requestFromActiveTab({
-    type: "GET_IMAGE_DESCRIPTION_INPUT",
+  const response = await options.requestFromActiveTab({
+    type: "DESCRIBE_PAGE_IMAGE",
     candidateId: options.candidateId,
   });
 
-  if (inputResponse.type === "ERROR") {
-    throw new Error(inputResponse.message);
+  if (response.type === "ERROR") {
+    throw new Error(response.message);
   }
-  if (inputResponse.type !== "IMAGE_DESCRIPTION_INPUT") {
+  if (response.type !== "IMAGE_DESCRIPTION_RESULT") {
     throw new Error("Unexpected response from content script");
   }
 
-  const registry = createProviderRegistry();
-  const provider = await registry.getImageDescriptionProvider();
-  if (!provider) {
-    throw new Error("No image description provider is available.");
-  }
-
   options.onStatus("Describing image…");
-  const result = await provider.describeImage(inputResponse.input);
-
-  if (!result.ok) {
-    throw new Error(result.message);
-  }
-
-  const label =
-    inputResponse.input.alt?.trim() ||
-    inputResponse.input.caption?.trim() ||
-    inputResponse.input.src?.split("/").pop() ||
-    "Selected image";
 
   return {
-    description: result.value,
-    providerId: provider.id,
-    label,
+    description: response.description,
+    label: response.label,
+    providerId: response.providerId,
   };
 }

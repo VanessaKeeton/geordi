@@ -3,6 +3,10 @@ import type {
   ImageDescriptionInputValidation,
 } from "./types";
 
+function hasLiveImageElement(input: ImageDescriptionInput): boolean {
+  return input.imageElement?.tagName?.toLowerCase() === "img";
+}
+
 /** Validate provider input before calling a local image description model. */
 export function validateImageDescriptionInput(
   input: ImageDescriptionInput | undefined | null,
@@ -16,8 +20,9 @@ export function validateImageDescriptionInput(
   }
 
   const hasImageBytes = Boolean(input.imageDataUrl?.trim());
+  const hasLiveImage = hasLiveImageElement(input);
 
-  if (!hasImageBytes && !input.src?.trim()) {
+  if (!hasImageBytes && !hasLiveImage && !input.src?.trim()) {
     return {
       ok: false,
       reason: "unsuitable_image",
@@ -25,16 +30,19 @@ export function validateImageDescriptionInput(
     };
   }
 
-  if (!hasImageBytes) {
+  if (!hasImageBytes && !hasLiveImage) {
     return {
       ok: false,
       reason: "inaccessible_image_data",
-      message:
-        "Image pixels could not be read locally. Cross-origin images stay private and are not fetched over the network.",
+      message: inaccessibleImageDataMessage(input),
     };
   }
 
   return { ok: true };
+}
+
+export function inaccessibleImageDataMessage(_input: ImageDescriptionInput): string {
+  return "Geordi could not read this image. It may still be loading, or the host blocked access.";
 }
 
 export function buildImageDescriptionPrompt(

@@ -7,6 +7,9 @@ import {
   queryAllDeep,
 } from "./deep-dom";
 import type { ImageDescriptionInput, ImageDimensions } from "../ai/types";
+import { isPageImageUrl, isSameOriginImageResource } from "./image-origin";
+
+export { isPageImageUrl, isSameOriginImageResource } from "./image-origin";
 
 export const PAGE_IMAGE_MIN_DIMENSION_PX = 32;
 export const PAGE_IMAGE_MAX_COUNT = 50;
@@ -262,13 +265,95 @@ export function findPageImageElement(
     : undefined;
 }
 
-/** Capture same-origin / CORS-safe image bytes as a data URL for providers. */
-export async function captureImageDataUrl(
+/** Resolve a prior discovery id against the live DOM (stable even if filters change). */
+export function resolvePageImageCandidate(
+  doc: Document,
+  candidateId: string,
+): PageImageCandidate | undefined {
+  const match = /^img-(\d+)$/.exec(candidateId);
+  if (!match) return undefined;
+
+  const element = findPageImageElement(doc, candidateId);
+  if (!element) return undefined;
+
+  return classifyImage(element, doc, Number(match[1]));
+}
+
+function resolveImageUrl(
+  img: HTMLImageElement,
+  doc: Document,
+): string | undefined {
+  const raw = img.currentSrc || img.src || img.getAttribute("src") || undefined;
+  if (!raw?.trim()) return undefined;
+
+  try {
+    return new URL(raw, doc.location?.href ?? undefined).href;
+  } catch {
+    return raw;
+  }
+}
+
+const IMAGE_CAPTURE_MAX_DIMENSION_PX = 1536;
+const IMAGE_CAPTURE_JPEG_QUALITY = 0.85;
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Could not read image bytes."));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read image bytes."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Wait for lazy or deferred images to finish loading before pixel capture. */
+export async function ensureImageElementReady(
+  img: HTMLImageElement,
+  timeoutMs = 8_000,
+): Promise<boolean> {
+  if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+    return true;
+  }
+
+  try {
+    await img.decode();
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) return true;
+  } catch {
+    // decode() fails for broken images; fall through to load/error wait.
+  }
+
+  if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+    return true;
+  }
+
+  return new Promise((resolve) => {
+    const finish = () => {
+      cleanup();
+      resolve(img.naturalWidth > 0 && img.naturalHeight > 0);
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      img.removeEventListener("load", finish);
+      img.removeEventListener("error", finish);
+    };
+
+    const timer = setTimeout(finish, timeoutMs);
+    img.addEventListener("load", finish);
+    img.addEventListener("error", finish);
+
+    if (img.loading === "lazy") {
+      img.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  });
+}
+
+async function captureImageFromCanvas(
   img: HTMLImageElement,
 ): Promise<string | undefined> {
-  if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
-    return undefined;
-  }
+  if (img.naturalWidth <= 0 || img.naturalHeight <= 0) return undefined;
 
   try {
     const canvas = img.ownerDocument.createElement("canvas");
@@ -283,12 +368,138 @@ export async function captureImageDataUrl(
   }
 }
 
+/** Read same-origin (or data/blob) image bytes without contacting third-party origins. */
+export async function fetchSameOriginImageAsDataUrl(
+  imageUrl: string,
+  doc: Document,
+): Promise<string | undefined> {
+  const pageUrl = doc.location?.href;
+  if (!pageUrl || !isSameOriginImageResource(imageUrl, pageUrl)) {
+    return undefined;
+  }
+
+  if (imageUrl.startsWith("data:")) return imageUrl;
+
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) return undefined;
+    const blob = await response.blob();
+    if (!blob.size) return undefined;
+    return await blobToDataUrl(blob);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Fetch page image bytes via the extension background worker (bypasses page CSP). */
+export async function fetchSameOriginImageViaBackground(
+  imageUrl: string,
+  pageUrl: string,
+): Promise<string | undefined> {
+  if (!pageUrl || !isPageImageUrl(imageUrl)) return undefined;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "FETCH_SAME_ORIGIN_IMAGE",
+      imageUrl,
+      pageUrl,
+    });
+
+    if (response?.type === "SAME_ORIGIN_IMAGE_DATA") {
+      return response.imageDataUrl;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/** Downscale captured bytes so messaging and on-device models stay within limits. */
+export async function compressImageDataUrl(
+  doc: Document,
+  dataUrl: string,
+  maxDimension = IMAGE_CAPTURE_MAX_DIMENSION_PX,
+): Promise<string> {
+  if (!dataUrl.startsWith("data:image/")) return dataUrl;
+
+  return new Promise((resolve) => {
+    const img = doc.createElement("img");
+    img.onload = () => {
+      const scale = Math.min(
+        1,
+        maxDimension / Math.max(img.naturalWidth, img.naturalHeight, 1),
+      );
+      const width = Math.max(1, Math.round(img.naturalWidth * scale));
+      const height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const canvas = doc.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        resolve(dataUrl);
+        return;
+      }
+      context.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", IMAGE_CAPTURE_JPEG_QUALITY));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+async function captureImageBytes(
+  doc: Document,
+  element: HTMLImageElement | undefined,
+  resolvedSrc: string | undefined,
+): Promise<string | undefined> {
+  const pageUrl = doc.location?.href;
+  let imageDataUrl = element ? await captureImageDataUrl(element) : undefined;
+
+  if (!imageDataUrl && resolvedSrc) {
+    imageDataUrl = await fetchSameOriginImageAsDataUrl(resolvedSrc, doc);
+  }
+
+  if (!imageDataUrl && resolvedSrc && pageUrl) {
+    imageDataUrl = await fetchSameOriginImageViaBackground(resolvedSrc, pageUrl);
+  }
+
+  if (imageDataUrl) {
+    imageDataUrl = await compressImageDataUrl(doc, imageDataUrl);
+  }
+
+  return imageDataUrl;
+}
+
+/** Capture same-origin / CORS-safe image bytes as a data URL for providers. */
+export async function captureImageDataUrl(
+  img: HTMLImageElement,
+): Promise<string | undefined> {
+  const doc = img.ownerDocument;
+  const url = resolveImageUrl(img, doc);
+
+  if (url?.startsWith("data:")) return url;
+
+  await ensureImageElementReady(img);
+
+  const fromCanvas = await captureImageFromCanvas(img);
+  if (fromCanvas) return fromCanvas;
+
+  if (url) {
+    return fetchSameOriginImageAsDataUrl(url, doc);
+  }
+
+  return undefined;
+}
+
 /** Build provider input from a discovered candidate, optionally with image bytes. */
 export function toImageDescriptionInput(
   candidate: PageImageCandidate,
   options: {
     pageUrl?: string;
     imageDataUrl?: string;
+    imageElement?: HTMLImageElement;
+    outputLanguage?: string;
   } = {},
 ): ImageDescriptionInput {
   const contextParts = [
@@ -309,25 +520,41 @@ export function toImageDescriptionInput(
     nearbyHeading: candidate.nearbyHeading,
     surroundingText: candidate.surroundingText,
     pageUrl: options.pageUrl,
+    outputLanguage: options.outputLanguage,
     imageDataUrl: options.imageDataUrl,
+    imageElement: options.imageElement,
     context: contextParts.length > 0 ? contextParts.join("\n") : undefined,
   };
 }
 
-/** Resolve provider input for a candidate, capturing image bytes when possible. */
+/** Build provider input with live DOM reference and captured bytes when available. */
+export async function prepareImageDescriptionInput(
+  doc: Document,
+  candidate: PageImageCandidate,
+  element?: HTMLImageElement,
+): Promise<ImageDescriptionInput> {
+  const resolvedElement =
+    element ?? findPageImageElement(doc, candidate.id) ?? undefined;
+  const imageDataUrl = await captureImageBytes(
+    doc,
+    resolvedElement,
+    candidate.resolvedSrc ?? candidate.src,
+  );
+
+  return toImageDescriptionInput(candidate, {
+    pageUrl: doc.location?.href,
+    outputLanguage: doc.documentElement.lang?.trim() || undefined,
+    imageDataUrl,
+    imageElement: imageDataUrl ? undefined : resolvedElement,
+  });
+}
+
+/** @deprecated Use prepareImageDescriptionInput() for live DOM + byte capture. */
 export async function resolveImageDescriptionInput(
   doc: Document,
   candidate: PageImageCandidate,
 ): Promise<ImageDescriptionInput> {
-  const element = findPageImageElement(doc, candidate.id);
-  const imageDataUrl = element
-    ? await captureImageDataUrl(element)
-    : undefined;
-
-  return toImageDescriptionInput(candidate, {
-    pageUrl: doc.location?.href,
-    imageDataUrl,
-  });
+  return prepareImageDescriptionInput(doc, candidate);
 }
 
 /** Accessible label for image picker controls. */

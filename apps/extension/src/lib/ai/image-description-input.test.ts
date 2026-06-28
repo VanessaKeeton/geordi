@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildImageDescriptionPrompt,
   dataUrlToBlob,
+  inaccessibleImageDataMessage,
   validateImageDescriptionInput,
 } from "./image-description-input";
 
@@ -20,11 +21,30 @@ describe("validateImageDescriptionInput", () => {
 
   it("rejects src-only input when pixels are inaccessible", () => {
     const result = validateImageDescriptionInput({
-      src: "https://cdn.example.com/chart.png",
+      src: "https://cdn.example.net/chart.png",
+      pageUrl: "https://www.example.com/page",
       alt: "Revenue chart",
     });
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("inaccessible_image_data");
+    expect(result.message).toContain("could not read");
+  });
+
+  it("uses a clearer message when capture fails", () => {
+    const message = inaccessibleImageDataMessage({
+      src: "https://example.com/chart.png",
+      pageUrl: "https://example.com/article",
+      alt: "Chart",
+    });
+    expect(message).toContain("could not read");
+  });
+
+  it("accepts a live img element without serialized bytes", () => {
+    const result = validateImageDescriptionInput({
+      alt: "Chart",
+      imageElement: { tagName: "IMG" } as HTMLImageElement,
+    });
+    expect(result.ok).toBe(true);
   });
 
   it("accepts locally captured image bytes", () => {
