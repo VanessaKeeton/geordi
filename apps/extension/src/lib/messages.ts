@@ -1,6 +1,7 @@
 /** Message types passed between extension contexts. */
 
 import type { PageContent } from "./content/page-content";
+import type { PageImageDiscoveryResult } from "./content/page-images";
 
 export type SpeechEvent =
   | { type: "start" }
@@ -15,12 +16,25 @@ export type GeordiMessage =
   | { type: "GET_SELECTION_READING" }
   | { type: "GET_PAGE_CONTENT" }
   | { type: "GET_SELECTION_CONTENT" }
+  | { type: "GET_PAGE_IMAGES" }
+  | { type: "DESCRIBE_PAGE_IMAGE"; candidateId: string }
+  | { type: "FETCH_PAGE_IMAGE"; imageUrl: string }
   | { type: "PAGE_READING"; text: string; title: string }
   | { type: "PAGE_CONTENT"; content: PageContent }
+  | { type: "PAGE_IMAGES"; discovery: PageImageDiscoveryResult }
+  | {
+      type: "IMAGE_DESCRIPTION_RESULT";
+      description: string;
+      label: string;
+      providerId: string;
+    }
+  | { type: "PAGE_IMAGE_DATA"; imageDataUrl: string }
   | { type: "SELECTION_READING"; text: string }
   | { type: "SELECTION_CONTENT"; content: PageContent }
   | { type: "HIGHLIGHT_AT_CHAR"; charIndex: number }
   | { type: "CLEAR_HIGHLIGHT" }
+  | { type: "HIGHLIGHT_PAGE_IMAGE"; candidateId: string }
+  | { type: "CLEAR_PAGE_IMAGE" }
   | { type: "TEARDOWN_READING" }
   | { type: "RESET_READING" }
   | { type: "ERROR"; message: string };
@@ -30,13 +44,17 @@ export type GeordiRequestMessage =
   | { type: "GET_PAGE_READING" }
   | { type: "GET_SELECTION_READING" }
   | { type: "GET_PAGE_CONTENT" }
-  | { type: "GET_SELECTION_CONTENT" };
+  | { type: "GET_SELECTION_CONTENT" }
+  | { type: "GET_PAGE_IMAGES" }
+  | { type: "DESCRIBE_PAGE_IMAGE"; candidateId: string };
 
 /** Messages forwarded from side panel to the active tab. */
 export type GeordiTabMessage =
   | GeordiRequestMessage
   | { type: "HIGHLIGHT_AT_CHAR"; charIndex: number }
   | { type: "CLEAR_HIGHLIGHT" }
+  | { type: "HIGHLIGHT_PAGE_IMAGE"; candidateId: string }
+  | { type: "CLEAR_PAGE_IMAGE" }
   | { type: "TEARDOWN_READING" };
 
 export interface SpeechSettings {

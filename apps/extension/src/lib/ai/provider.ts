@@ -9,6 +9,9 @@ export type {
 export type {
   AICapability,
   ImageDescriptionInput,
+  ImageDescriptionInputFailureReason,
+  ImageDescriptionInputValidation,
+  ImageDimensions,
   NavAction,
   PageContext,
   ProviderAvailability,
@@ -27,6 +30,12 @@ export {
 export { ProviderRegistry } from "./registry";
 export { createProviderRegistry } from "./create-registry";
 export type { CreateProviderRegistryOptions } from "./create-registry";
+
+export {
+  buildImageDescriptionPrompt,
+  dataUrlToBlob,
+  validateImageDescriptionInput,
+} from "./image-description-input";
 
 /** @deprecated Legacy Phase 3 stub — use SummarizationProvider + ProviderRegistry. */
 export interface AIProvider {

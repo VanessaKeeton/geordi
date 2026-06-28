@@ -1,41 +1,44 @@
 # Agent Handoff
 
-**Last updated:** 2026-06-24  
-**Last agent task:** Issue #25 — Chrome summarization + summary read-aloud highlight  
-**Branch:** `codex/issue-25-chrome-summarizer`
+**Last updated:** 2026-06-26  
+**Last agent task:** Issue #27 — Rich image description + page highlight cleanup  
+**Branch:** `codex/issue-27-rich-image-description`
 
 ## Current state
 
-- Chrome `Summarizer` API adapter fully implemented (`ChromeSummarizationProvider.summarize()`)
-- Side panel **Summarize** section: format picker + on-device summary output
-- Summaries auto-read aloud with word/sentence highlighting in the side panel
-- Summary follow-along scroll is **contained** to `#summary-scroll` so Play/Pause/Stop stay reachable
-- Page read-aloud highlighting unchanged (full-page `scrollIntoView`)
-- Extension version **0.3.1** (`apps/extension/package.json`)
-- 100 unit tests passing
+- **Page image discovery** (`lib/content/page-images.ts`): finds meaningful `<img>` elements, filters decorative/hidden/tiny/tracking/boilerplate images, captures alt, src, dimensions, role, caption, nearby heading, and surrounding text
+- **Provider contract** expanded in `lib/ai/types.ts` (`ImageDescriptionInput`, `ImageDimensions`, validation reasons, `outputLanguage`)
+- **Input helpers** (`lib/ai/image-description-input.ts`): validation, prompt builder (no duplicate context), local data-URL → Blob conversion (no network)
+- **Chrome adapter** (`lib/ai/providers/chrome/image-description.ts`): Prompt API multimodal `describeImage()` with `expectedOutputs: [{ type: "text", languages: [lang] }]`; prefers captured Blob bytes over live `<img>` to avoid canvas taint
+- **Describe in content script** (`lib/content/describe-page-image-in-tab.ts`): capture + provider run in tab (live DOM)
+- **Background image fetch** (`lib/content/fetch-page-image.ts`): fetches page-discovered http(s)/data URLs when canvas and same-origin fetch fail (bypasses page CSP)
+- **Page image highlight** (`lib/content/highlight-page-image.ts`): fixed-position overlay + inline styles; background routes highlights to `pageImagesTabId`
+- **Side panel Images section**: Find images → select (highlights on page) → Describe image → Read description (auto-reads after describe)
+- **Messaging**: `GET_PAGE_IMAGES`, `DESCRIBE_PAGE_IMAGE`, `FETCH_PAGE_IMAGE`, `HIGHLIGHT_PAGE_IMAGE`, etc.
+- Extension version **0.4.2** (`apps/extension/package.json`)
+- **148 unit tests** passing
 
 ## Completed this session
 
-- [x] Summary read-aloud highlighting via `wrap-for-reading` in side panel
-- [x] `highlightAtCharIndex` scroll modes: `page` (default), `contained`, `none`
-- [x] `#summary-scroll` scroll region (max-height 12rem) for long summaries
-- [x] Fix: summary highlight no longer scrolls the whole side panel away from playback controls
-- [x] Version bump `0.2.9` → `0.3.1`
-- [x] Verified `pnpm test:run` (100 tests) and `pnpm build:ext` pass
+- [x] Image discovery + context extraction pipeline with tests
+- [x] Chrome `LanguageModel` multimodal describeImage implementation
+- [x] Side panel UI: availability note, find/select/describe/read controls
+- [x] Content-script describe flow + background fetch for CDN/cross-origin capture
+- [x] Fix Prompt API output language and canvas taint errors
+- [x] Page image highlight (overlay + correct tab routing)
+- [x] Image description read-aloud with word highlighting in side panel
+- [x] Code cleanup: rename background fetch API, remove unused `GET_IMAGE_DESCRIPTION_INPUT` path
 
 ## Next up (priority order)
 
-1. **#27** — Rich image description pipeline
-2. **#29** — Read-aloud UX (premium voices)
-3. **#28** — BYOK cloud provider
-4. **#30** — Availability/privacy UX
-5. Phase 2: Structured navigation (#17)
+1. **#29** — Read-aloud UX (premium voices)
+2. **#28** — BYOK cloud provider
+3. **#30** — Availability/privacy UX
+4. Phase 2: Structured navigation (#17)
 
-## Known blockers
+## Known limitations
 
-- Chrome Built-in AI requires Chrome 138+, hardware requirements, and may need `chrome://flags` in preview builds
-- Highlight alignment depends on browser `boundary` event support (Chrome)
-
-## Uncommitted work
-
-Summary highlighting + scroll containment fix are local; prior Chrome summarization commit is `7c5282c`. Push branch and open PR for #25 when ready.
+- Image description fetches URLs discovered on the active page when you choose Describe image (including CDN/third-party hosts); core read-aloud stays local with no network
+- Chrome Prompt API multimodal requires Chrome 138+ with Gemini Nano; output languages: de, en, es, fr, ja
+- Discovery scans `<img>` only (not CSS backgrounds, `<svg role="img">`, or cross-origin iframe images yet)
+- Selecting an image in the picker outlines it on the page and scrolls it into view

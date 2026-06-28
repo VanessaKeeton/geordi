@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   CHROME_SUMMARIZER_MAX_CHARS,
   resolveChromeOutputLanguage,
+  resolveChromePromptOutputLanguage,
   trimTextForChromeSummarizer,
 } from "./summarizer-limits";
 import { probeChromeSummarizerAvailability } from "./detect";
@@ -16,6 +17,17 @@ describe("resolveChromeOutputLanguage", () => {
   it("falls back to English for unsupported page languages", () => {
     expect(resolveChromeOutputLanguage("de")).toBe("en");
     expect(resolveChromeOutputLanguage("fr-FR")).toBe("en");
+  });
+});
+
+describe("resolveChromePromptOutputLanguage", () => {
+  it("keeps supported Prompt API languages", () => {
+    expect(resolveChromePromptOutputLanguage("fr-FR")).toBe("fr");
+    expect(resolveChromePromptOutputLanguage("de")).toBe("de");
+  });
+
+  it("falls back to English for unsupported page languages", () => {
+    expect(resolveChromePromptOutputLanguage("pt-BR")).toBe("en");
   });
 });
 

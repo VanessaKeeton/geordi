@@ -8,6 +8,12 @@ import {
   extractPageContent,
   extractSelectionContent,
 } from "../lib/content/extract";
+import { discoverPageImages } from "../lib/content/page-images";
+import { describePageImageInTab } from "../lib/content/describe-page-image-in-tab";
+import {
+  clearPageImageHighlight,
+  highlightPageImage,
+} from "../lib/content/highlight-page-image";
 import {
   clearReadingStyles,
   highlightAtCharIndex,
@@ -60,6 +66,40 @@ export default defineContentScript({
             return true;
           }
 
+          if (message.type === "GET_PAGE_IMAGES") {
+            sendResponse({
+              type: "PAGE_IMAGES",
+              discovery: discoverPageImages(),
+            });
+            return true;
+          }
+
+          if (message.type === "DESCRIBE_PAGE_IMAGE") {
+            void (async () => {
+              try {
+                const result = await describePageImageInTab(
+                  document,
+                  message.candidateId,
+                );
+                sendResponse({
+                  type: "IMAGE_DESCRIPTION_RESULT",
+                  description: result.description,
+                  label: result.label,
+                  providerId: result.providerId,
+                });
+              } catch (err) {
+                sendResponse({
+                  type: "ERROR",
+                  message:
+                    err instanceof Error
+                      ? err.message
+                      : "Could not describe this image.",
+                });
+              }
+            })();
+            return true;
+          }
+
           if (message.type === "HIGHLIGHT_AT_CHAR") {
             const doc = getWrappedReadingDocument();
             if (doc) {
@@ -76,7 +116,18 @@ export default defineContentScript({
             return false;
           }
 
+          if (message.type === "HIGHLIGHT_PAGE_IMAGE") {
+            highlightPageImage(document, message.candidateId);
+            return false;
+          }
+
+          if (message.type === "CLEAR_PAGE_IMAGE") {
+            clearPageImageHighlight();
+            return false;
+          }
+
           if (message.type === "TEARDOWN_READING") {
+            clearPageImageHighlight();
             clearWrappedReading();
             return false;
           }

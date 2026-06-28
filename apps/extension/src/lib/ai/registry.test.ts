@@ -119,6 +119,9 @@ describe("createProviderRegistry", () => {
   it("probes Chrome LanguageModel for image description availability", async () => {
     (globalThis as ChromeAiGlobals).LanguageModel = {
       availability: async () => "available",
+      create: async () => ({
+        prompt: async () => "Rich description.",
+      }),
     };
 
     const registry = createProviderRegistry({ browser: "chrome" });
@@ -127,5 +130,20 @@ describe("createProviderRegistry", () => {
 
     const availability = await provider!.checkAvailability();
     expect(availability.state).toBe("available");
+  });
+
+  it("returns structured failure from unsupported image description", async () => {
+    const registry = createProviderRegistry({ browser: "firefox" });
+    const provider = await registry.getImageDescriptionProvider();
+    expect(provider?.id).toBe("unsupported-image-description");
+
+    const result = await provider!.describeImage({
+      imageDataUrl: "data:image/png;base64,abc",
+      alt: "Chart",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.availability.state).toBe("unsupported");
+    }
   });
 });

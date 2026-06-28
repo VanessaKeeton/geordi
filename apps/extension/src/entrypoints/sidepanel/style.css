@@ -279,6 +279,60 @@ input[type="range"] {
   white-space: pre-wrap;
 }
 
+.images-note {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.images-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.images-controls fieldset {
+  margin: 0;
+}
+
+.image-description-result {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  background: var(--surface);
+  border-radius: 6px;
+  border-left: 4px solid var(--accent-emphasis);
+}
+
+.image-description-result h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-emphasis);
+}
+
+.image-description-label {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.image-description-scroll {
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.image-description-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

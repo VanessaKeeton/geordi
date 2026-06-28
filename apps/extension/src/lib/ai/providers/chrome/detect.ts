@@ -55,8 +55,36 @@ export interface ChromeSummarizerApi {
   ): Promise<ChromeSummarizerInstance>;
 }
 
+export interface ChromePromptContentPart {
+  type: "text" | "image";
+  value: string | Blob | HTMLImageElement;
+}
+
+export interface ChromePromptMessage {
+  role: "user" | "assistant" | "system";
+  content: string | ChromePromptContentPart[];
+}
+
+export interface ChromeLanguageModelCreateOptions {
+  expectedInputs?: Array<{ type: "text" | "image" | "audio"; languages?: string[] }>;
+  expectedOutputs?: Array<{ type: "text"; languages?: string[] }>;
+  initialPrompts?: ChromePromptMessage[];
+  monitor?: (monitor: ChromeDownloadMonitor) => void;
+}
+
+export interface ChromeLanguageModelSession {
+  prompt(input: string | ChromePromptMessage[]): Promise<string>;
+  destroy?(): Promise<void>;
+}
+
 export interface ChromeLanguageModelApi {
   availability(): Promise<ChromeAiAvailability>;
+  availability(
+    options?: ChromeLanguageModelCreateOptions,
+  ): Promise<ChromeAiAvailability>;
+  create(
+    options?: ChromeLanguageModelCreateOptions,
+  ): Promise<ChromeLanguageModelSession>;
 }
 
 export interface ChromeAiGlobals {

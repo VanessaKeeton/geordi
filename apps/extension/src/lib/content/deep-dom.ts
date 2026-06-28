@@ -1,11 +1,22 @@
 /** Walk a DOM tree including open shadow roots (depth-first, document order). */
+function isElement(node: Node): node is Element {
+  return node.nodeType === Node.ELEMENT_NODE;
+}
+
+function isDocument(node: Node): node is Document {
+  return node.nodeType === Node.DOCUMENT_NODE;
+}
+
+function isShadowRoot(node: Node): node is ShadowRoot {
+  return node.nodeType === Node.DOCUMENT_FRAGMENT_NODE && "host" in node;
+}
+
 export function forEachNode(root: Node, visit: (node: Node) => void): void {
   visit(root);
 
-  const childNodes =
-    root instanceof Document
-      ? root.documentElement?.childNodes
-      : root.childNodes;
+  const childNodes = isDocument(root)
+    ? root.documentElement?.childNodes
+    : root.childNodes;
 
   if (childNodes) {
     for (const child of childNodes) {
@@ -13,7 +24,7 @@ export function forEachNode(root: Node, visit: (node: Node) => void): void {
     }
   }
 
-  if (root instanceof Element && root.shadowRoot) {
+  if (isElement(root) && root.shadowRoot) {
     for (const child of root.shadowRoot.childNodes) {
       forEachNode(child, visit);
     }
@@ -23,11 +34,12 @@ export function forEachNode(root: Node, visit: (node: Node) => void): void {
 /** querySelectorAll that pierces open shadow roots. */
 export function queryAllDeep(root: ParentNode, selector: string): Element[] {
   const results: Element[] = [];
-  const start =
-    root instanceof Document ? root.documentElement! : (root as Node);
+  const start = isDocument(root as Node)
+    ? (root as Document).documentElement!
+    : (root as Node);
 
   forEachNode(start, (node) => {
-    if (node instanceof Element && node.matches(selector)) {
+    if (isElement(node) && node.matches(selector)) {
       results.push(node);
     }
   });
@@ -38,8 +50,9 @@ export function queryAllDeep(root: ParentNode, selector: string): Element[] {
 /** Collect text nodes in document order, including inside shadow roots. */
 export function collectTextNodesDeep(root: ParentNode): Text[] {
   const nodes: Text[] = [];
-  const start =
-    root instanceof Document ? root.documentElement! : (root as Node);
+  const start = isDocument(root as Node)
+    ? (root as Document).documentElement!
+    : (root as Node);
 
   forEachNode(start, (node) => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -56,13 +69,13 @@ export function ancestorElements(node: Node): Element[] {
   let current: Node | null = node.parentNode;
 
   while (current) {
-    if (current instanceof Element) {
+    if (isElement(current)) {
       elements.push(current);
       current = current.parentNode;
       continue;
     }
 
-    if (current instanceof ShadowRoot) {
+    if (isShadowRoot(current)) {
       elements.push(current.host);
       current = current.host.parentNode;
       continue;
